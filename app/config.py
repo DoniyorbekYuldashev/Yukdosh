@@ -22,6 +22,13 @@ if _env_file.exists():
 
 
 DATABASE_URL = _env("DATABASE_URL", f"sqlite+aiosqlite:///{BASE_DIR / 'sarbon.db'}")
+# Railway / Heroku / most managed Postgres give a plain 'postgres://' or 'postgresql://'
+# URL, but our async SQLAlchemy needs the asyncpg driver. Upgrade it automatically so you
+# can paste the provider's URL as-is.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql+asyncpg://" + DATABASE_URL[len("postgres://"):]
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+asyncpg://" + DATABASE_URL[len("postgresql://"):]
 
 # Telegram userbot credentials (optional; enables real scraping)
 TELEGRAM_API_ID = _env("TELEGRAM_API_ID")
