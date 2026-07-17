@@ -1,0 +1,48 @@
+"""Zero-dependency test runner — no pytest, no pip needed.
+Run:  py run_tests.py
+Checks the core logic: geo hierarchy, truck types, and deduplication."""
+from app.parser.geo import location_match, classify_query
+from app.parser.normalize import canonicalize_trucks as ct
+from app.schemas import ParsedLoad
+from app.parser.dedup import dedup_hash as h
+
+_passed = 0
+_failed = 0
+
+
+def check(desc, got, want):
+    global _passed, _failed
+    ok = got == want
+    _passed += ok
+    _failed += not ok
+    print(f"  {'OK  ' if ok else 'FAIL'} {desc}" + ("" if ok else f"   got={got!r} want={want!r}"))
+
+
+print("\n[Geo hierarchy: region/country -> districts]")
+check("region Qashqadaryo finds district Kitob", location_match("Kitob", "Qashqadaryo"), True)
+check("region Xorazm finds Urganch", location_match("Urganch", "Xorazm"), True)
+check("wrong region excluded", location_match("Kitob", "Xorazm"), False)
+check("district search is exact", location_match("Qarshi", "Qarshi"), True)
+check("country Uzbekistan finds Kitob", location_match("Kitob", "Uzbekistan"), True)
+check("country (Uzbek spelling) finds Urganch", location_match("Urganch", "Ozbekiston"), True)
+check("Vorsino belongs to Russia", location_match("Ворсино", "Russia"), True)
+check("Syrdarya is Uzbekistan not Russia", location_match("Сырдарья", "Russia"), False)
+check("classify region", classify_query("Qashqadaryo")[0], "region")
+check("classify country", classify_query("Rossiya")[0], "country")
+
+print("\n[Truck types: paravoz, isuzu, typos]")
+check("tent + paravoz listed together", ct("тент паравоз"), "tent, paravoz")
+check("isuzu recognized", ct("kichkina isuzu"), "isuzu")
+check("isuzu typo tolerated", ct("katta isuzi"), "isuzu")
+check("multi-type", ct("Тент - Реф"), "tent, ref")
+check("unknown -> any", ct("farqi yoq"), "")
+
+print("\n[Deduplication: cross-channel reposts collapse]")
+a = ParsedLoad(origin_city="Toshkent", destination_city="Moskva", contact_phone="+998 90 123 45 67", comment="tent")
+b = ParsedLoad(origin_city="Тошкент", destination_city="Москва", contact_phone="998901234567", comment="срочно")
+c = ParsedLoad(origin_city="Toshkent", destination_city="Samarqand", contact_phone="+998901234567")
+check("same route+phone -> same fingerprint", h(a) == h(b), True)
+check("different route -> different fingerprint", h(a) != h(c), True)
+
+print(f"\n{'='*40}\nPASSED {_passed}  FAILED {_failed}\n")
+raise SystemExit(1 if _failed else 0)

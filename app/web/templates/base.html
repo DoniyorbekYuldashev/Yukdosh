@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sarbon24</title>
+  <style>
+    :root { --bg:#0f1720; --card:#1a2431; --line:#2a3a4d; --text:#e7eef6; --muted:#8ea3ba;
+            --accent:#2dd4bf; --accent2:#f59e0b; --load:#22c55e; --truck:#f59e0b; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+           background:var(--bg); color:var(--text); }
+    header { display:flex; align-items:center; gap:24px; padding:16px 28px;
+             border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; }
+    .brand { font-weight:800; font-size:20px; letter-spacing:.5px; }
+    .brand span { color:var(--accent); }
+    nav a { color:var(--muted); text-decoration:none; margin-right:18px; font-weight:600; }
+    nav a.active, nav a:hover { color:var(--text); }
+    main { max-width:1100px; margin:0 auto; padding:28px; }
+    h1 { font-size:22px; margin:0 0 4px; }
+    .sub { color:var(--muted); margin:0 0 22px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
+            padding:20px; margin-bottom:20px; }
+    .row { display:flex; flex-wrap:wrap; gap:16px; }
+    label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+    input, select { width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--line);
+            background:#111a24; color:var(--text); font-size:14px; }
+    .field { flex:1; min-width:160px; }
+    button, .btn { background:var(--accent); color:#062b28; border:none; padding:10px 18px;
+            border-radius:9px; font-weight:700; cursor:pointer; font-size:14px; text-decoration:none; display:inline-block; }
+    button.secondary { background:#26374a; color:var(--text); }
+    button.danger { background:#3a2230; color:#f6a9c0; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); }
+    th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+    .pill { padding:3px 9px; border-radius:20px; font-size:12px; font-weight:700; }
+    .pill.load { background:rgba(34,197,94,.15); color:var(--load); }
+    .pill.truck { background:rgba(245,158,11,.15); color:var(--truck); }
+    .tag { background:#111a24; border:1px solid var(--line); padding:2px 8px; border-radius:6px;
+           font-size:12px; color:var(--muted); }
+    .stat { display:flex; gap:26px; flex-wrap:wrap; }
+    .stat div b { display:block; font-size:22px; color:var(--accent); }
+    .stat div span { color:var(--muted); font-size:12px; }
+    .muted { color:var(--muted); }
+    .flush { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    code { background:#111a24; padding:2px 6px; border-radius:5px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Sarbon<span>24</span></div>
+    <nav>
+      <a href="/" class="{{ 'active' if active=='dashboard' else '' }}">Loads</a>
+      <a href="/settings" class="{{ 'active' if active=='settings' else '' }}">Settings</a>
+    </nav>
+  </header>
+  <main>{% block body %}{% endblock %}</main>
+</body>
+</html>

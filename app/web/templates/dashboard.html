@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="flush">
+  <div>
+    <h1>Parsed loads</h1>
+    <p class="sub">Messy Telegram posts, turned into structured, searchable loads.</p>
+  </div>
+  <form method="post" action="/run"><button type="submit">Run pipeline now</button></form>
+</div>
+
+{% if running %}
+<div class="card" style="border-color:var(--accent)">
+  <b>⏳ Pipeline running in the background…</b>
+  <span class="muted">refresh this page in a few seconds to see the results.</span>
+</div>
+{% endif %}
+
+{% if last_run %}
+<div class="card">
+  {% if last_run.error %}<p style="color:#f6a9c0; margin:0 0 10px"><b>Last run error:</b> {{ last_run.error }}</p>{% endif %}
+  <div class="stat">
+    <div><b>{{ last_run.loads_created }}</b><span>loads created</span></div>
+    <div><b>{{ last_run.new_raw_messages }}</b><span>new raw messages</span></div>
+    <div><b>{{ last_run.duplicates_skipped }}</b><span>duplicates skipped</span></div>
+    <div><b>{{ last_run.junk_skipped }}</b><span>ads/junk skipped</span></div>
+    <div><b>{{ last_run.groups_scanned }}</b><span>groups scanned</span></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  {% if loads %}
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th><th>Route</th><th>Cargo</th><th>Weight</th><th>Truck</th>
+        <th>Price</th><th>Contact</th><th>Lang</th><th>Parser</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in loads %}
+      <tr>
+        <td>{% if l.is_load %}<span class="pill load">LOAD</span>{% else %}<span class="pill truck">TRUCK</span>{% endif %}</td>
+        <td><b>{{ l.origin_city or '—' }}</b> → <b>{{ l.destination_city or '—' }}</b></td>
+        <td>{{ l.cargo_type or '—' }}</td>
+        <td>{{ (l.weight_tons|string + ' t') if l.weight_tons else '—' }}</td>
+        <td>{% if l.truck_type %}<span class="tag">{{ l.truck_type }}</span>{% else %}—{% endif %}</td>
+        <td>{% if l.price_amount %}{{ '{:,.0f}'.format(l.price_amount) }} {{ l.price_currency }}{% else %}<span class="muted">negotiable</span>{% endif %}</td>
+        <td class="muted">{{ l.contact_phone or '—' }}</td>
+        <td><span class="tag">{{ l.language_detected or '?' }}</span></td>
+        <td class="muted">{{ l.parser_provider }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No loads yet. Click <b>Run pipeline now</b> to scrape (or, offline, load the sample posts) and parse them.</p>
+  {% endif %}
+</div>
+<p class="sub">{{ loads|length }} loads shown · {{ raw_count }} raw messages stored</p>
+{% endblock %}

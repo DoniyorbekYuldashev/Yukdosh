@@ -1,0 +1,78 @@
+# Sarbon24 — full stack: Postgres + web admin (behind Caddy HTTPS) + driver bot + scraper.
+# Secrets come from .env (BOT_TOKEN, ADMIN_PASSWORD, DOMAIN, API keys, TELEGRAM_*).
+# Deploy:  docker compose up -d --build
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sarbon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sarbon}
+      POSTGRES_DB: ${POSTGRES_DB:-sarbon}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sarbon}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "127.0.0.1:5432:5432"   # localhost only — NOT exposed to the internet
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sarbon}:${POSTGRES_PASSWORD:-sarbon}@db:5432/${POSTGRES_DB:-sarbon}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"                  # internal only; Caddy reverse-proxies to it
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sarbon}:${POSTGRES_PASSWORD:-sarbon}@db:5432/${POSTGRES_DB:-sarbon}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: python -m app.bot.main
+
+  scheduler:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sarbon}:${POSTGRES_PASSWORD:-sarbon}@db:5432/${POSTGRES_DB:-sarbon}
+    depends_on:
+      db:
+        condition: service_healthy
+    # mount the Telegram session created by `py -m app.scraper.login` so the userbot stays logged in
+    volumes:
+      - ./sarbon_session.session:/app/sarbon_session.session
+    command: python -m app.scheduler
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

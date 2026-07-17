@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Settings</h1>
+<p class="sub">Everything here is dynamic — change it any time, no code edits.</p>
+
+<!-- Telegram groups -->
+<div class="card">
+  <div class="flush">
+    <h1 style="font-size:18px">Telegram groups to scrape</h1>
+    <span class="muted">{{ groups|selectattr('enabled')|list|length }} active / {{ groups|length }} total</span>
+  </div>
+  <p class="sub">Each group can have its own message count &amp; hours. Leave a field blank to use the global default below.</p>
+
+  <table>
+    <thead><tr><th>Link</th><th>Title</th><th>Per-group window</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for g in groups %}
+      <tr>
+        <td><code>{{ g.link }}</code></td>
+        <td class="muted">{{ g.title or '—' }}</td>
+        <td>
+          <form method="post" action="/groups/{{ g.id }}/limits" style="display:flex; gap:6px; align-items:center">
+            <input type="number" name="max_messages" value="{{ g.max_messages if g.max_messages is not none else '' }}"
+                   placeholder="def" min="1" style="width:64px" title="messages">
+            <span class="muted">msgs /</span>
+            <input type="number" name="hours_back" value="{{ g.hours_back if g.hours_back is not none else '' }}"
+                   placeholder="def" min="0" style="width:64px" title="hours">
+            <span class="muted">h</span>
+            <button class="secondary" type="submit">Save</button>
+          </form>
+        </td>
+        <td>{% if g.enabled %}<span class="pill load">active</span>{% else %}<span class="tag">paused</span>{% endif %}</td>
+        <td style="text-align:right; white-space:nowrap">
+          <form method="post" action="/groups/{{ g.id }}/toggle" style="display:inline">
+            <button class="secondary" type="submit">{{ 'Pause' if g.enabled else 'Enable' }}</button>
+          </form>
+          <form method="post" action="/groups/{{ g.id }}/delete" style="display:inline">
+            <button class="danger" type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="post" action="/groups/add" style="margin-top:16px">
+    <div class="row">
+      <div class="field" style="flex:2"><label>Group link (public @username or https://t.me/...)</label>
+        <input name="link" placeholder="https://t.me/uzbekistan_yuk_gruz" required></div>
+      <div class="field"><label>Title (optional)</label>
+        <input name="title" placeholder="UZ Gruz Perevozki"></div>
+      <div class="field"><label>Messages (optional)</label>
+        <input type="number" name="max_messages" placeholder="default" min="1"></div>
+      <div class="field"><label>Hours (optional)</label>
+        <input type="number" name="hours_back" placeholder="default" min="0"></div>
+      <div style="align-self:flex-end"><button type="submit">Add group</button></div>
+    </div>
+  </form>
+</div>
+
+<!-- Global scrape window + parser -->
+<form method="post" action="/settings">
+  <div class="card">
+    <h1 style="font-size:18px">Default scrape window</h1>
+    <p class="sub">Applied to any group that doesn't set its own values above.</p>
+    <div class="row">
+      <div class="field"><label>Latest messages per group</label>
+        <input type="number" name="scrape_max_messages" value="{{ cfg.scrape_max_messages }}" min="1"></div>
+      <div class="field"><label>From the last N hours</label>
+        <input type="number" name="scrape_hours_back" value="{{ cfg.scrape_hours_back }}" min="0"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1 style="font-size:18px">Auto-scrape scheduler</h1>
+    <p class="sub">When on, the pipeline runs itself on a timer (needs the scheduler process:
+       <code>py -m app.scheduler</code>). Loads stay visible to drivers for the active window.</p>
+    <div class="row">
+      <div class="field" style="max-width:220px"><label>Enabled</label>
+        <label style="display:flex; align-items:center; gap:8px; padding:9px 0">
+          <input type="checkbox" name="scheduler_enabled" {{ 'checked' if cfg.scheduler_enabled=='true' else '' }}>
+          <span class="muted">run automatically</span></label></div>
+      <div class="field"><label>Every N minutes</label>
+        <input type="number" name="scheduler_interval_minutes" value="{{ cfg.scheduler_interval_minutes }}" min="1"></div>
+      <div class="field"><label>Loads active for (hours)</label>
+        <input type="number" name="load_active_hours" value="{{ cfg.load_active_hours }}" min="1"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1 style="font-size:18px">Parser model</h1>
+    <p class="sub">Swap providers any time. <b>mock</b> runs offline with no key. Add a key to use a real model.</p>
+    <div class="row">
+      <div class="field"><label>Provider</label>
+        <select name="parser_provider">
+          <option value="mock" {{ 'selected' if cfg.parser_provider=='mock' else '' }}>mock — offline, no key</option>
+          <option value="gemini" {{ 'selected' if cfg.parser_provider=='gemini' else '' }}>gemini — Google (free)</option>
+          <option value="openai" {{ 'selected' if cfg.parser_provider=='openai' else '' }}>openai — gpt-4o-mini (paid, reliable)</option>
+        </select></div>
+      <div class="field"><label>Gemini API key</label>
+        <input name="gemini_api_key" value="{{ cfg.gemini_api_key }}" placeholder="AIza..."></div>
+      <div class="field"><label>OpenAI API key</label>
+        <input name="openai_api_key" value="{{ cfg.openai_api_key }}" placeholder="sk-..."></div>
+    </div>
+    <div style="margin-top:16px"><button type="submit">Save settings</button></div>
+  </div>
+</form>
+
+<div class="card">
+  <p class="muted" style="margin:0">To scrape real groups you need a Telegram <b>userbot</b>: put
+  <code>TELEGRAM_API_ID</code>, <code>TELEGRAM_API_HASH</code> and <code>TELEGRAM_PHONE</code> in
+  <code>.env</code>, <code>pip install telethon</code>, then log in once with
+  <code>py -m app.scraper.login</code>. Without these, the app runs offline on sample posts.</p>
+</div>
+{% endblock %}

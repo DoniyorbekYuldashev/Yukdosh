@@ -1,0 +1,20 @@
+# Core (required to run the web app + offline pipeline demo)
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+sqlalchemy==2.0.31
+aiosqlite==0.20.0
+jinja2==3.1.4
+python-multipart==0.0.9
+pydantic==2.8.2
+httpx==0.27.0
+
+# Driver bot
+aiogram==3.10.0
+
+# LLM parser (real). groq is used when you switch provider to "groq" in Settings.
+
+# Optional — only for REAL Telegram scraping / Postgres.
+telethon==1.36.0            # real Telegram scraping (userbot)
+google-generativeai==0.7.2   # Gemini parser
+openai==1.51.0                # OpenAI parser (gpt-4o-mini)
+asyncpg==0.29.0             # PostgreSQL async driver

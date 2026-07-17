@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.db-journal
+*.session
+*.session-journal
+.env
+.git/
+data/real_samples.jsonl
