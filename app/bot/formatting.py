@@ -9,7 +9,7 @@ _CURRENCY_SYMBOL = {"UZS": "so'm", "RUB": "rub", "KZT": "tenge", "USD": "$"}
 _TRUCK_KEYS = {
     "tent": "tk_tent", "ref": "tk_ref", "isotherm": "tk_isotherm",
     "flatbed": "tk_flatbed", "container": "tk_container", "dump": "tk_dump",
-    "isuzu": "tk_isuzu", "paravoz": "tk_paravoz", "other": "tk_other",
+    "isuzu": "tk_isuzu", "paravoz": "tk_paravoz", "labo": "tk_labo", "other": "tk_other",
 }
 
 

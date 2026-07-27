@@ -67,7 +67,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "goods": "Mahsulot",
         "tk_tent": "Tent", "tk_ref": "Refrijerator", "tk_isotherm": "Izoterm",
         "tk_flatbed": "Bortli", "tk_container": "Konteyner", "tk_dump": "Samosval",
-        "tk_isuzu": "Isuzu", "tk_paravoz": "Paravoz", "tk_other": "Boshqa",
+        "tk_isuzu": "Isuzu", "tk_paravoz": "Paravoz", "tk_labo": "Labo", "tk_other": "Boshqa",
     },
     "kk": {
         "btn_post": "➕ Жүк жариялау",
@@ -125,7 +125,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "goods": "Тауар",
         "tk_tent": "Тент", "tk_ref": "Рефрижератор", "tk_isotherm": "Изотерм",
         "tk_flatbed": "Бортты", "tk_container": "Контейнер", "tk_dump": "Самосвал",
-        "tk_isuzu": "Isuzu", "tk_paravoz": "Автопойыз", "tk_other": "Басқа",
+        "tk_isuzu": "Isuzu", "tk_paravoz": "Автопойыз", "tk_labo": "Labo", "tk_other": "Басқа",
     },
     "ru": {
         "btn_post": "➕ Разместить груз",
@@ -183,7 +183,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "goods": "Товар",
         "tk_tent": "Тент", "tk_ref": "Рефрижератор", "tk_isotherm": "Изотерм",
         "tk_flatbed": "Бортовой", "tk_container": "Контейнер", "tk_dump": "Самосвал",
-        "tk_isuzu": "Isuzu", "tk_paravoz": "Автопоезд", "tk_other": "Другое",
+        "tk_isuzu": "Isuzu", "tk_paravoz": "Автопоезд", "tk_labo": "Labo", "tk_other": "Другое",
     },
 }
 

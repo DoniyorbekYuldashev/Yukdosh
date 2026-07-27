@@ -31,7 +31,7 @@ router = Router()
 
 PAGE_SIZE = 5
 _search_ctx: dict = {}
-TRUCK_CODES = ["tent", "ref", "isotherm", "flatbed", "container", "dump", "isuzu", "paravoz"]
+TRUCK_CODES = ["tent", "ref", "isotherm", "flatbed", "container", "dump", "isuzu", "paravoz", "labo"]
 SEQ = ["origin", "destination", "cargo", "weight", "price", "phone"]
 PROMPT_KEY = {"origin": "p_origin", "destination": "p_dest", "cargo": "p_cargo",
               "weight": "p_weight", "price": "p_price", "phone": "p_phone"}

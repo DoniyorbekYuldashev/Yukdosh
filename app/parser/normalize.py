@@ -140,6 +140,7 @@ TRUCK_ALIASES.update({
     # Isuzu (small truck brand used as a type); size words kichik/katta stay in the text
     "isuzu": "isuzu", "исузу": "isuzu", "isuzi": "isuzu", "исузи": "isuzu",
     "isuza": "isuzu", "izuzu": "isuzu", "izusu": "isuzu",
+    "labo": "labo", "лабо": "labo", "labbo": "labo",
 })
 
 
