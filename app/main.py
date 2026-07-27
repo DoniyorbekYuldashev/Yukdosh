@@ -206,3 +206,100 @@ async def api_loads():
         "price_currency": l.price_currency, "phone": l.contact_phone,
         "language": l.language_detected, "provider": l.parser_provider, "source_group": l.source_group,
     } for l in loads]
+
+
+_USERS_HTML = """<!doctype html><html><head><meta charset="utf-8">
+<title>Foydalanuvchilar - Sarbon24</title>
+<style>
+body{font-family:system-ui,'Segoe UI',Arial,sans-serif;margin:24px;color:#132539;background:#f8fafc}
+h2{margin:0 0 4px;font-weight:600}
+.sub{color:#64748b;font-size:13px;margin-bottom:18px}
+.cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;min-width:118px}
+.card b{font-size:26px;color:#0F766E;display:block;line-height:1.2}
+.card span{font-size:13px;color:#64748b}
+.bar{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+input{flex:1;max-width:280px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}
+input:focus{outline:none;border-color:#0F766E}
+button{padding:8px 14px;border:1px solid #0F766E;background:#0F766E;color:#fff;border-radius:8px;cursor:pointer;font-size:14px}
+button:hover{background:#0b5f59}
+table{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
+th,td{border-bottom:1px solid #eef2f7;padding:9px 12px;text-align:left;font-size:14px}
+th{color:#475569;font-weight:500;cursor:pointer;user-select:none;background:#f1f5f9}
+th:hover{color:#0F766E}
+td.num,th.num{text-align:right}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#f8fafc}
+a{color:#0F766E;text-decoration:none}
+.count{color:#64748b;font-size:13px}
+</style></head><body>
+<h2>Foydalanuvchilar</h2>
+<div class="sub">Vaqt: Toshkent (UTC+5) &middot; <a href="/">&larr; Boshqaruv paneli</a></div>
+<div class="cards">__CARDS__</div>
+<div class="bar">
+  <input id="q" placeholder="Qidirish: @username yoki ism...">
+  <span class="count" id="cnt"></span>
+  <button onclick="location.reload()">Yangilash</button>
+</div>
+<table id="t"><thead><tr>
+<th onclick="sortBy(0)">Foydalanuvchi</th>
+<th onclick="sortBy(1)">Birinchi kirgan</th>
+<th onclick="sortBy(2)">Oxirgi faollik</th>
+<th class="num" onclick="sortBy(3)">Amallar</th>
+</tr></thead><tbody>__ROWS__</tbody></table>
+<script>
+var tb=document.querySelector('#t tbody'),q=document.getElementById('q'),cnt=document.getElementById('cnt'),dir={};
+function rows(){return Array.prototype.slice.call(tb.querySelectorAll('tr'));}
+function upd(){var v=q.value.toLowerCase(),n=0;rows().forEach(function(r){
+  var s=r.cells[0].textContent.toLowerCase(),show=!v||s.indexOf(v)>-1;
+  r.style.display=show?'':'none';if(show)n++;});cnt.textContent=n+' ta';}
+function sortBy(i){dir[i]=!dir[i];var s=dir[i]?1:-1;var rs=rows();
+  rs.sort(function(a,b){var av=a.cells[i].dataset.v||a.cells[i].textContent,
+    bv=b.cells[i].dataset.v||b.cells[i].textContent,na=parseFloat(av),nb=parseFloat(bv);
+    if(!isNaN(na)&&!isNaN(nb))return (na-nb)*s;return av.localeCompare(bv)*s;});
+  rs.forEach(function(r){tb.appendChild(r);});}
+q.addEventListener('input',upd);upd();
+</script></body></html>"""
+
+
+@app.get("/users", response_class=HTMLResponse)
+async def users_page():
+    import html as _html
+    from datetime import timezone as _tz, timedelta as _td
+    from . import analytics
+
+    tashkent = _tz(_td(hours=5))          # loads/users are stored in UTC; show local time
+    st = await analytics.get_stats()
+
+    def _local(dt):
+        if not dt:
+            return "-", 0
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=_tz.utc)
+        return dt.astimezone(tashkent).strftime("%d.%m.%Y %H:%M"), int(dt.timestamp())
+
+    rows = []
+    for u in st["recent"]:
+        who = ("@" + u.username) if u.username else (u.first_name or u.tg_user_id)
+        first_txt, first_ts = _local(u.first_seen)
+        last_txt, last_ts = _local(u.last_seen)
+        acts = u.actions or 0
+        rows.append(
+            "<tr><td>" + _html.escape(who) + "</td>"
+            f'<td data-v="{first_ts}">{first_txt}</td>'
+            f'<td data-v="{last_ts}">{last_txt}</td>'
+            f'<td class="num" data-v="{acts}">{acts}</td></tr>'
+        )
+
+    cards = "".join(
+        f'<div class="card"><b>{val}</b><span>{label}</span></div>'
+        for val, label in (
+            (st["total"], "Jami foydalanuvchi"),
+            (st["new1"], "Bugun yangi"),
+            (st["new7"], "7 kunda yangi"),
+            (st["act1"], "24 soatda faol"),
+            (st["act7"], "7 kunda faol"),
+        )
+    )
+    page = _USERS_HTML.replace("__CARDS__", cards).replace("__ROWS__", "".join(rows))
+    return HTMLResponse(page)

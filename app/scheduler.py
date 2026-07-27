@@ -51,9 +51,11 @@ async def main():
             try:
                 st = await run_pipeline()
                 saved = st.get('prefiltered_junk', 0) + st.get('duplicate_texts_skipped', 0)
-                msg = (f"[scheduler] +{st['loads_created']} loads, {st['new_raw_messages']} new msgs, "
+                msg = (f"[scheduler] [{st.get('provider','?')}] +{st['loads_created']} loads, {st['new_raw_messages']} new msgs, "
                        f"{st['junk_skipped']} junk skipped, {st.get('api_calls', 0)} model calls "
                        f"({saved} calls saved: noise+reposts)")
+                if st.get("api_error"):
+                    msg += f"\n           ⚠ API: {st['api_error']}"
                 if notif_bot:
                     sent = await notify_new_loads(notif_bot)
                     msg += f", {sent} notifications sent"

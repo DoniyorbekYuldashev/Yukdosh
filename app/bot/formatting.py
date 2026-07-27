@@ -1,19 +1,20 @@
-"""Render a structured load as a clean card for drivers, showing the full field set:
-From, Destination, truck/trailer type + count, load type + amount, price, phone, comment."""
+"""Render a structured load as a clean card for drivers, in the user's language."""
 from datetime import datetime, timezone, timedelta
+
+from .i18n import t, DEFAULT_LANG
 
 TASHKENT = timezone(timedelta(hours=5))  # Uzbekistan time (UTC+5)
 
 _CURRENCY_SYMBOL = {"UZS": "so'm", "RUB": "rub", "KZT": "tenge", "USD": "$"}
-_TRUCK_LABEL = {
-    "tent": "Tent", "ref": "Refrijerator", "isotherm": "Izoterm",
-    "flatbed": "Bortli", "container": "Konteyner", "dump": "Samosval",
-    "isuzu": "Isuzu", "paravoz": "Paravoz", "other": "Boshqa",
+_TRUCK_KEYS = {
+    "tent": "tk_tent", "ref": "tk_ref", "isotherm": "tk_isotherm",
+    "flatbed": "tk_flatbed", "container": "tk_container", "dump": "tk_dump",
+    "isuzu": "tk_isuzu", "paravoz": "tk_paravoz", "other": "tk_other",
 }
 
 
-def _when(dt):
-    """Proper Tashkent local time: 'Bugun 16:54', 'Kecha 21:30', or '10.07 09:15'."""
+def _when(dt, lang):
+    """Tashkent local time: 'Bugun 16:54' / 'Сегодня 16:54' / 'Бүгін 16:54'."""
     if not dt:
         return ""
     if dt.tzinfo is None:
@@ -21,19 +22,25 @@ def _when(dt):
     local = dt.astimezone(TASHKENT)
     today = datetime.now(TASHKENT).date()
     if local.date() == today:
-        day = "Bugun"
+        day = t(lang, "today")
     elif local.date() == today - timedelta(days=1):
-        day = "Kecha"
+        day = t(lang, "yesterday")
     else:
         day = local.strftime("%d.%m")
     return f"{day} {local.strftime('%H:%M')}"
 
 
-def _money(amount, currency):
+def _money(amount, currency, lang):
     if not amount:
-        return "keltirilmagan"
+        return t(lang, "price_none")
     cur = _CURRENCY_SYMBOL.get(currency, currency or "")
     return f"{amount:,.0f} {cur}".strip()
+
+
+def _truck_label(code, lang):
+    code = (code or "").strip()
+    key = _TRUCK_KEYS.get(code)
+    return t(lang, key) if key else code
 
 
 def _post_link(l):
@@ -44,19 +51,31 @@ def _post_link(l):
     return ""
 
 
-def _tail(l):
-    t = []
+def _tail(l, lang):
+    parts = []
     if l.posted_at:
-        t.append(f"🕒 {_when(l.posted_at)}")
+        parts.append(f"🕒 {_when(l.posted_at, lang)}")
     if l.source_group == "bot":
-        t.append("Sarbon24 orqali")
+        parts.append(t(lang, "via_bot"))
     elif l.source_group:
-        t.append("manba: " + l.source_group.replace("https://t.me/", "@"))
-    return ("<i>" + " · ".join(t) + "</i>") if t else ""
+        parts.append(t(lang, "source") + ": " + l.source_group.replace("https://t.me/", "@"))
+    return ("<i>" + " · ".join(parts) + "</i>") if parts else ""
 
 
-def format_goods(l):
-    lines = [f"🛒 <b>{l.cargo_type or 'Mahsulot'}</b>"]
+def _common_tail(l, lines, lang):
+    if getattr(l, "comment", ""):
+        lines.append(f"📝 {l.comment}")
+    link = _post_link(l)
+    if link:
+        lines.append(f'🔗 <a href="{link}">{t(lang, "source_link")}</a>')
+    tail = _tail(l, lang)
+    if tail:
+        lines.append(tail)
+    return "\n".join(lines)
+
+
+def format_goods(l, lang=DEFAULT_LANG):
+    lines = [f"🛒 <b>{l.cargo_type or t(lang, 'goods')}</b>"]
     meta = []
     if l.weight_tons:
         meta.append(f"⚖️ {float(l.weight_tons):g} t")
@@ -64,33 +83,25 @@ def format_goods(l):
         meta.append(f"📍 {l.origin_city}")
     if meta:
         lines.append(" · ".join(meta))
-    lines.append(f"💰 {_money(float(l.price_amount) if l.price_amount else None, l.price_currency)}")
+    lines.append(f"💰 {_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang)}")
     if l.contact_phone:
         lines.append(f"📞 {l.contact_phone}")
-    if getattr(l, 'comment', ''):
-        lines.append(f"📝 {l.comment}")
-    link = _post_link(l)
-    if link:
-        lines.append(f'🔗 <a href="{link}">E\'lon manbasi</a>')
-    tail = _tail(l)
-    if tail:
-        lines.append(tail)
-    return "\n".join(lines)
+    return _common_tail(l, lines, lang)
 
 
-def format_load(l):
+def format_load(l, lang=DEFAULT_LANG):
     if getattr(l, "listing_type", "load") == "goods":
-        return format_goods(l)
+        return format_goods(l, lang)
     head = "📦" if l.is_load else "🚛"
     lines = [f"{head} <b>{l.origin_city or '?'} → {l.destination_city or '?'}</b>"]
 
     row = []
     if l.truck_type:
-        parts = [_TRUCK_LABEL.get(x.strip(), x.strip()) for x in l.truck_type.split(",") if x.strip()]
-        t = ", ".join(parts)
+        parts = [_truck_label(x, lang) for x in l.truck_type.split(",") if x.strip()]
+        label = ", ".join(parts)
         if getattr(l, "truck_count", None):
-            t += f" ×{l.truck_count}"
-        row.append(f"🚚 {t}")
+            label += f" ×{l.truck_count}"
+        row.append(f"🚚 {label}")
     elif getattr(l, "truck_count", None):
         row.append(f"🚚 ×{l.truck_count}")
     if l.weight_tons:
@@ -100,22 +111,14 @@ def format_load(l):
 
     if l.cargo_type:
         lines.append(f"📦 {l.cargo_type}")
-    lines.append(f"💰 {_money(float(l.price_amount) if l.price_amount else None, l.price_currency)}")
+    lines.append(f"💰 {_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang)}")
     if l.contact_phone:
         lines.append(f"📞 {l.contact_phone}")
-    if getattr(l, "comment", ""):
-        lines.append(f"📝 {l.comment}")
-    link = _post_link(l)
-    if link:
-        lines.append(f'🔗 <a href="{link}">E\'lon manbasi</a>')
-    tail = _tail(l)
-    if tail:
-        lines.append(tail)
-    return "\n".join(lines)
+    return _common_tail(l, lines, lang)
 
 
-def format_results(loads, header):
+def format_results(loads, header, lang=DEFAULT_LANG):
     if not loads:
-        return f"<b>{header}</b>\n\nHech narsa topilmadi. Keyinroq urinib ko'ring."
-    blocks = [format_load(l) for l in loads]
+        return f"<b>{header}</b>\n\n{t(lang, 'nothing_found')}"
+    blocks = [format_load(l, lang) for l in loads]
     return f"<b>{header}</b> ({len(loads)})\n\n" + "\n\n➖➖➖\n\n".join(blocks)

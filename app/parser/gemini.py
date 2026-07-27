@@ -3,7 +3,7 @@ even when Google renames models. Free key: https://aistudio.google.com/app/apike
 import json
 
 from .base import LLMParser
-from .prompt import build_system_prompt, user_prompt
+from .prompt import build_system_prompt, user_prompt, batch_user_prompt
 from .normalize import canonical_city, canonical_currency, canonicalize_trucks, TRUCK_ALIASES
 from ..schemas import ParsedLoad
 
@@ -46,6 +46,12 @@ class GeminiParser(LLMParser):
         resp = self._model.generate_content(user_prompt(text))
         return to_loads(json.loads(resp.text))
 
+    def parse_batch(self, texts: list[str]) -> list[list[ParsedLoad]]:
+        if not texts:
+            return []
+        resp = self._model.generate_content(batch_user_prompt(texts))
+        return split_batch(json.loads(resp.text), len(texts))
+
 
 def _to_parsed_load(data: dict) -> ParsedLoad:
     load = ParsedLoad(**{k: data.get(k) for k in ParsedLoad.model_fields if data.get(k) is not None})
@@ -77,4 +83,22 @@ def to_loads(data) -> list[ParsedLoad]:
                 out.append(_to_parsed_load(it))
             except Exception as exc:
                 print(f"[parser] skipped a load ({exc})")
+    return out
+
+
+def split_batch(data, n: int) -> list[list[ParsedLoad]]:
+    """Map a batched {"results":[{"i":1,"loads":[...]}]} reply back onto the input order."""
+    out: list[list[ParsedLoad]] = [[] for _ in range(n)]
+    items = data.get("results") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        raise ValueError("batch reply missing 'results'")
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        try:
+            i = int(it.get("i", 0))
+        except (TypeError, ValueError):
+            continue
+        if 1 <= i <= n:
+            out[i - 1] = to_loads({"loads": it.get("loads") or []})
     return out

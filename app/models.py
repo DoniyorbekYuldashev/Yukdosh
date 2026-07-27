@@ -110,3 +110,17 @@ class Subscription(Base):
     truck_type: Mapped[str] = mapped_column(String(64), default="")    # optional filter
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class BotUser(Base):
+    """A person who has used the bot — for usage analytics (count, first/last seen)."""
+    __tablename__ = "bot_users"
+
+    tg_user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), default="")
+    first_name: Mapped[str] = mapped_column(String(128), default="")
+    language: Mapped[str] = mapped_column(String(8), default="")
+    lang: Mapped[str] = mapped_column(String(8), default="")  # language chosen in the bot
+    actions: Mapped[int] = mapped_column(Integer, default=0)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

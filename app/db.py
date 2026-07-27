@@ -9,7 +9,25 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_async_engine(DATABASE_URL, echo=False, future=True)
+_IS_SQLITE = DATABASE_URL.startswith("sqlite")
+# SQLite allows one writer at a time; web+bot+scheduler all write. WAL mode lets readers and a
+# writer work concurrently, and busy_timeout makes writers WAIT instead of failing with
+# "database is locked". Postgres needs none of this.
+engine = create_async_engine(
+    DATABASE_URL, echo=False, future=True,
+    connect_args={"timeout": 30} if _IS_SQLITE else {},
+)
+
+if _IS_SQLITE:
+    from sqlalchemy import event
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _rec):
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=30000")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.close()
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -42,23 +60,27 @@ async def init_db() -> None:
 _WANTED_COLUMNS = {
     "groups": {"max_messages": "INTEGER", "hours_back": "INTEGER", "last_msg_id": "INTEGER"},
     "raw_messages": {"parse_attempts": "INTEGER DEFAULT 0"},
+    "bot_users": {"lang": "VARCHAR(8) DEFAULT ''"},
     "loads": {"listing_type": "VARCHAR(16) DEFAULT 'load'", "posted_by_tg": "VARCHAR(64) DEFAULT ''", "truck_count": "INTEGER", "comment": "TEXT DEFAULT ''", "source_msg_id": "VARCHAR(64) DEFAULT ''", "notified": "BOOLEAN DEFAULT 0", "poster_username": "VARCHAR(64) DEFAULT ''"},
 }
 
 
 def _ensure_columns(sync_conn) -> None:
-    if not DATABASE_URL.startswith("sqlite"):
-        return  # for Postgres use real migrations (Alembic)
+    """Add newly-introduced columns to existing tables. Works on SQLite AND Postgres."""
     from sqlalchemy import inspect, text
     insp = inspect(sync_conn)
     tables = set(insp.get_table_names())
+    is_sqlite = DATABASE_URL.startswith("sqlite")
     for table, cols in _WANTED_COLUMNS.items():
         if table not in tables:
             continue
         existing = {c["name"] for c in insp.get_columns(table)}
         for col, ddl in cols.items():
-            if col not in existing:
-                sync_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+            if col in existing:
+                continue
+            if not is_sqlite:  # Postgres wants a real boolean literal
+                ddl = ddl.replace("BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT FALSE")
+            sync_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
 
 
 async def _seed_defaults() -> None:

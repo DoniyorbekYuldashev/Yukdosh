@@ -21,7 +21,12 @@ if _env_file.exists():
         os.environ.setdefault(k.strip(), v.strip())
 
 
-DATABASE_URL = _env("DATABASE_URL", f"sqlite+aiosqlite:///{BASE_DIR / 'sarbon.db'}")
+DATABASE_URL = _env("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not set. Sarbon24 runs on PostgreSQL — put it in .env, e.g.\n"
+        "  DATABASE_URL=postgresql+asyncpg://postgres:YOUR_PASSWORD@localhost:5432/sarbon"
+    )
 # Railway / Heroku / most managed Postgres give a plain 'postgres://' or 'postgresql://'
 # URL, but our async SQLAlchemy needs the asyncpg driver. Upgrade it automatically so you
 # can paste the provider's URL as-is.
@@ -42,6 +47,10 @@ BOT_TOKEN = _env("BOT_TOKEN")
 GEMINI_API_KEY = _env("GEMINI_API_KEY")
 GEMINI_MODEL = _env("GEMINI_MODEL", "gemini-2.0-flash")
 OPENAI_API_KEY = _env("OPENAI_API_KEY")
+
+# Local model (Ollama / LM Studio / vLLM) — free, runs on your GPU.
+OLLAMA_BASE_URL = _env("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+LOCAL_MODEL = _env("LOCAL_MODEL", "qwen3:8b")
 
 # Web admin login. If ADMIN_PASSWORD is empty, auth is OFF (local dev only) — ALWAYS
 # set a strong ADMIN_PASSWORD in production so the settings/keys page is protected.

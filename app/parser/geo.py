@@ -8,6 +8,10 @@ Makes search smart about administrative levels:
 Built on norm_city(), so it is script- and typo-tolerant (Cyrillic/Latin, q/k, x/h, ...).
 Extend the dicts freely as you see new places in real posts.
 """
+import re
+from difflib import SequenceMatcher as _SM
+from functools import lru_cache
+
 from .normalize import norm_city, city_match
 
 # ── Uzbekistan: region -> its districts/cities (the ones that show up in freight posts) ──
@@ -139,6 +143,63 @@ for _k, _country in _COUNTRY_KEYS.items():
     _CITY2COUNTRY.setdefault(_k, _country)
 
 
+
+# ── Alternate spellings (Russian vs Uzbek forms) -> ONE canonical place ────────
+# Loads are stored exactly as written, so "Коканд" and "Qoqon" must resolve to the same city,
+# otherwise Russian-written loads become invisible to Uzbek searches (and vice versa).
+_CITY_ALT = {
+    "Toshkent": ["Tashkent"], "Chirchiq": ["Chirchik"], "Olmaliq": ["Almalyk"],
+    "Bekobod": ["Bekabad"], "Angren": [], "Yangiyol": ["Yangiyul"],
+    "Buxoro": ["Bukhara", "Buxara"], "Kogon": ["Kagan"], "Gijduvon": ["Gizhduvan"],
+    "Navoiy": ["Navoi"], "Zarafshon": ["Zarafshan"], "Uchquduq": ["Uchkuduk"],
+    "Fargona": ["Fergana", "Ferghana"], "Qoqon": ["Kokand", "Kokan"],
+    "Margilon": ["Margilan"], "Quvasoy": ["Kuvasay"], "Rishton": ["Rishtan"],
+    "Andijon": ["Andijan"], "Asaka": [], "Xonobod": ["Khanabad"], "Qorasuv": ["Karasu"],
+    "Namangan": [], "Chust": [], "Uchqorgon": ["Uchkurgan"], "Kosonsoy": ["Kasansay"],
+    "Samarqand": ["Samarkand"], "Kattaqorgon": ["Kattakurgan"], "Urgut": [],
+    "Qarshi": ["Karshi"], "Shahrisabz": ["Shakhrisabz"], "Kitob": ["Kitab"],
+    "Guzor": ["Guzar"], "Koson": ["Kasan"], "Muborak": ["Mubarek"],
+    "Termiz": ["Termez"], "Denov": ["Denau"], "Sherobod": ["Sherabad"],
+    "Shorchi": ["Shurchi"], "Boysun": ["Baysun"],
+    "Jizzax": ["Dzhizak", "Djizak", "Jizzakh"], "Gagarin": [], "Zomin": ["Zaamin"],
+    "Guliston": ["Gulistan"], "Yangiyer": [], "Sirdaryo": ["Syrdarya", "Sirdarya"],
+    "Urganch": ["Urgench"], "Xiva": ["Khiva"], "Hazorasp": ["Khazarasp"],
+    "Gurlan": ["Gurlen"], "Pitnak": [],
+    "Nukus": [], "Xojayli": ["Khodjeyli"], "Chimboy": ["Chimbay"],
+    "Beruniy": ["Beruni"], "Turtkol": ["Turtkul"], "Qongirot": ["Kungrad"],
+    "Moskva": ["Moscow"], "Sankt-Peterburg": ["Saint-Petersburg", "Spb"],
+    "Almaty": ["Alma-Ata"], "Shymkent": ["Chimkent"], "Astana": ["Nur-Sultan"],
+    "Bishkek": ["Bishkek"], "Dushanbe": ["Dushanbe"],
+}
+
+_ALIAS2CANON: dict[str, str] = {}
+for _canon, _alts in _CITY_ALT.items():
+    _ALIAS2CANON[norm_city(_canon)] = _canon
+    for _a in _alts:
+        _ALIAS2CANON[norm_city(_a)] = _canon
+
+# alt spellings inherit the canonical place's region + country
+for _key, _canon in list(_ALIAS2CANON.items()):
+    _ck = norm_city(_canon)
+    if _ck in _CITY2REGION:
+        _CITY2REGION.setdefault(_key, _CITY2REGION[_ck])
+    if _ck in _CITY2COUNTRY:
+        _CITY2COUNTRY.setdefault(_key, _CITY2COUNTRY[_ck])
+
+# Russian-form REGION names, so "Бухара" / "Fergana" are recognised as regions
+_REGION_ALT = {
+    "Toshkent": ["Tashkent"], "Buxoro": ["Bukhara", "Buxara"], "Navoiy": ["Navoi"],
+    "Fargona": ["Fergana", "Ferghana"], "Andijon": ["Andijan"], "Samarqand": ["Samarkand"],
+    "Jizzax": ["Dzhizak", "Djizak", "Jizzakh"], "Xorazm": ["Khorezm"],
+    "Qashqadaryo": ["Kashkadarya"], "Surxondaryo": ["Surkhandarya"],
+    "Sirdaryo": ["Syrdarya"], "Qoraqalpogiston": ["Karakalpakstan"],
+}
+for _reg, _alts in _REGION_ALT.items():
+    if _reg in _ALL_REGIONS:
+        for _a in _alts:
+            _REGION_KEYS[norm_city(_a)] = _reg
+
+
 def classify_query(query: str):
     """Return ('country'|'region'|'city'|'any', canonical_name_or_None) for a search term."""
     qn = norm_city(query)
@@ -151,12 +212,29 @@ def classify_query(query: str):
     return ("city", None)
 
 
+@lru_cache(maxsize=8192)
+def _resolve(pn: str):
+    """(region, country) for a normalized place key, with a fuzzy fallback for typos."""
+    if not pn:
+        return (None, None)
+    if pn in _CITY2COUNTRY or pn in _CITY2REGION:
+        return (_CITY2REGION.get(pn), _CITY2COUNTRY.get(pn))
+    best, score = None, 0.0
+    for key in _CITY2COUNTRY:
+        r = _SM(None, pn, key).ratio()
+        if r > score:
+            best, score = key, r
+    if best and score >= 0.85:
+        return (_CITY2REGION.get(best), _CITY2COUNTRY.get(best))
+    return (None, None)
+
+
 def region_of(place: str):
-    return _CITY2REGION.get(norm_city(place))
+    return _resolve(norm_city(place))[0]
 
 
 def country_of(place: str):
-    return _CITY2COUNTRY.get(norm_city(place))
+    return _resolve(norm_city(place))[1]
 
 
 def location_match(load_place: str, query: str) -> bool:
@@ -169,5 +247,20 @@ def location_match(load_place: str, query: str) -> bool:
         return country_of(load_place) == name
     if kind == "region":
         return region_of(load_place) == name or norm_city(load_place) == norm_city(name)
-    # plain city/district — fall back to fuzzy cross-script matching
+    # plain city/district: same canonical place (handles Коканд == Qoqon), else fuzzy
+    ca = _ALIAS2CANON.get(norm_city(load_place))
+    cb = _ALIAS2CANON.get(norm_city(query))
+    if ca and cb:
+        return ca == cb
     return city_match(load_place, query)
+
+
+def has_known_place(text: str) -> bool:
+    """True if the text mentions any place we know (city / district / region / country)."""
+    for tok in re.split(r"[^\w']+", text or ""):
+        if len(tok) < 3:
+            continue
+        k = norm_city(tok)
+        if k and (k in _CITY2COUNTRY or k in _REGION_KEYS or k in _COUNTRY_KEYS):
+            return True
+    return False

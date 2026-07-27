@@ -8,6 +8,7 @@ from sqlalchemy import select
 from .db import SessionLocal
 from .models import Load, Subscription, Setting
 from .bot.formatting import format_load
+from .bot.i18n import t, get_lang
 from .parser.geo import location_match
 
 MAX_PER_DRIVER = 10   # cap notifications per driver per run (avoid flooding)
@@ -55,7 +56,8 @@ async def notify_new_loads(bot) -> int:
                 if per_driver.get(uid, 0) >= MAX_PER_DRIVER:
                     continue
                 try:
-                    await bot.send_message(int(uid), "🔔 <b>Yangi yuk sizning yo'nalishingizda!</b>\n\n" + format_load(load))
+                    ulang = await get_lang(uid)
+                    await bot.send_message(int(uid), t(ulang, "notify_new") + format_load(load, ulang))
                     per_driver[uid] = per_driver.get(uid, 0) + 1
                     sent += 1
                 except Exception as exc:

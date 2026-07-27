@@ -1,17 +1,13 @@
-"""Sarbon24 driver/seller/buyer bot (aiogram v3).
+"""Sarbon24 driver bot (aiogram v3) — multilingual: Uzbek, Kazakh, Russian.
 
-Two-sided:
-  • SEARCH — drivers find loads by route (+optional truck type), browse newest loads.
-  • POST   — load owners / sellers submit a load, goods-for-sale, or empty truck via a
-             guided Q&A. First-party posts save to the same DB and appear in search.
-
-Reads/writes the same DB the scraping+parsing pipeline fills.
+Every user-facing string comes from i18n.t(lang, key). Menu buttons are matched across
+ALL languages, so a user who switched language still hits the right handler.
 Run:  python -m app.bot.main   (needs BOT_TOKEN in .env)
 """
 import asyncio
 import logging
 
-from aiogram import Bot, Dispatcher, Router, F
+from aiogram import Bot, Dispatcher, Router, F, BaseMiddleware
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
@@ -23,95 +19,32 @@ from aiogram.types import (Message, ReplyKeyboardMarkup, KeyboardButton,
 
 from ..config import BOT_TOKEN
 from ..db import init_db
+from ..analytics import record_user
 from ..parser.mock import _find_price
 from ..parser.normalize import canonical_city
 from . import queries, subscriptions
 from .formatting import format_results, format_load
+from .i18n import t, variants, LANG_NAMES, get_lang, set_lang
 
 logging.basicConfig(level=logging.INFO)
 router = Router()
 
-PAGE_SIZE = 5              # loads per page in search
-_search_ctx: dict = {}     # user_id -> last search {origin, dest, truck, offset}
-
-# ── menu buttons ──
-BTN_POST = "➕ Yuk e'lonini berish"
-BTN_SEARCH = "🔍 Yuk qidirish"
-BTN_LATEST = "🆕 Yangi yuklar"
-BTN_HELP = "ℹ️ Yordam"
-BTN_ROUTES = "🔔 Yo'nalishlarim"
-
-MENU = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text=BTN_POST)],
-        [KeyboardButton(text=BTN_SEARCH), KeyboardButton(text=BTN_ROUTES)],
-        [KeyboardButton(text=BTN_LATEST), KeyboardButton(text=BTN_HELP)],
-    ],
-    resize_keyboard=True,
-)
-
-# ── post-type buttons ──
-KIND_LOAD = "📦 Yuk bor (tashish kerak)"
-KIND_GOODS = "🛒 Mahsulot sotaman"
-KIND_TRUCK = "🚛 Bo'sh mashinam bor"
-KIND_CANCEL = "❌ Bekor qilish"
-
-KIND_KB = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text=KIND_LOAD)], [KeyboardButton(text=KIND_GOODS)],
-              [KeyboardButton(text=KIND_TRUCK)], [KeyboardButton(text=KIND_CANCEL)]],
-    resize_keyboard=True,
-)
-
-# ── search truck-type picker (inline, optional) ──
-_SEARCH_TRUCK_TYPES = [
-    ("Tent", "tent"), ("Ref", "ref"), ("Izoterm", "isotherm"),
-    ("Bortli", "flatbed"), ("Konteyner", "container"), ("Samosval", "dump"),
-    ("Isuzu", "isuzu"), ("Paravoz", "paravoz"),
-]
+PAGE_SIZE = 5
+_search_ctx: dict = {}
+TRUCK_CODES = ["tent", "ref", "isotherm", "flatbed", "container", "dump", "isuzu", "paravoz"]
+SEQ = ["origin", "destination", "cargo", "weight", "price", "phone"]
+PROMPT_KEY = {"origin": "p_origin", "destination": "p_dest", "cargo": "p_cargo",
+              "weight": "p_weight", "price": "p_price", "phone": "p_phone"}
 
 
-def _truck_inline() -> InlineKeyboardMarkup:
-    rows, row = [], []
-    for label, val in _SEARCH_TRUCK_TYPES:
-        row.append(InlineKeyboardButton(text=label, callback_data=f"st:{val}"))
-        if len(row) == 3:
-            rows.append(row)
-            row = []
-    if row:
-        rows.append(row)
-    rows.append([InlineKeyboardButton(text="🔀 Farqi yo'q (hammasi)", callback_data="st:any")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-WELCOME = (
-    "Assalomu alaykum! <b>Sarbon24</b> — yuk va mahsulotlarni bir joyda.\n\n"
-    "🔎 Yuk qidiring, ➕ o'z e'loningizni bering.\n\n"
-    "Quyidagidan tanlang:"
-)
-HELP = (
-    "<b>Sarbon24 yordam</b>\n\n"
-    f"{BTN_POST} — yuk, mahsulot yoki bo'sh mashina e'lonini berish\n"
-    f"{BTN_SEARCH} — yo'nalish (va mashina turi) bo'yicha yuk qidirish\n"
-    f"{BTN_LATEST} — eng yangi yuklar\n"
-    f"{BTN_ROUTES} — yo'nalish saqlab, yangi yuklardan xabar oling\n\n"
-    "Bekor qilish: /cancel"
-)
-
-# ── posting flow ──
-SEQ = {
-    "load": ["origin", "destination", "cargo", "weight", "price", "phone"],
-    "truck": ["origin", "destination", "weight", "price", "phone"],
-    "goods": ["cargo", "origin", "weight", "price", "phone"],
-}
-PROMPT = {
-    "origin": "📍 Qayerdan? (shahar)",
-    "destination": "📍 Qayerga? (shahar)",
-    "cargo_load": "📦 Yuk nomi? (masalan: paxta, meva)",
-    "cargo_goods": "🛒 Mahsulot nomi? (masalan: pomidor 1-nav)",
-    "weight": "⚖️ Necha tonna? ('-' bilmasangiz)",
-    "price": "💰 Narxi? (masalan: 45 mln so'm, yoki '-')",
-    "phone": "📞 Telefon raqamingiz? ('-' → Telegram orqali)",
-}
+class UsageMiddleware(BaseMiddleware):
+    """Record every interacting user for analytics (count, first/last seen)."""
+    async def __call__(self, handler, event, data):
+        try:
+            await record_user(data.get("event_from_user"))
+        except Exception as exc:
+            logging.warning(f"usage track failed: {exc}")
+        return await handler(event, data)
 
 
 class Search(StatesGroup):
@@ -128,51 +61,103 @@ class Route(StatesGroup):
     destination = State()
 
 
-def _prompt_for(field: str, kind: str) -> str:
-    if field == "cargo":
-        return PROMPT["cargo_goods"] if kind == "goods" else PROMPT["cargo_load"]
-    return PROMPT[field]
+# ── keyboards ──
+def menu_kb(lang) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=t(lang, "btn_post"))],
+            [KeyboardButton(text=t(lang, "btn_search")), KeyboardButton(text=t(lang, "btn_routes"))],
+            [KeyboardButton(text=t(lang, "btn_latest")), KeyboardButton(text=t(lang, "btn_help"))],
+        ],
+        resize_keyboard=True,
+    )
 
 
-# ── basic commands ──
+def lang_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=LANG_NAMES[code], callback_data=f"lang:{code}")]
+        for code in ("uz", "kk", "ru")
+    ])
+
+
+def truck_kb(lang) -> InlineKeyboardMarkup:
+    rows, row = [], []
+    for code in TRUCK_CODES:
+        row.append(InlineKeyboardButton(text=t(lang, "tk_" + code), callback_data=f"st:{code}"))
+        if len(row) == 3:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append([InlineKeyboardButton(text=t(lang, "truck_any"), callback_data="st:any")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+# ── language ──
 @router.message(Command("start"))
 async def cmd_start(m: Message, state: FSMContext):
     await state.clear()
-    await m.answer(WELCOME, reply_markup=MENU)
+    await m.answer(t(await get_lang(m.from_user.id), "choose_lang"), reply_markup=lang_kb())
+
+
+@router.message(Command("lang"))
+async def cmd_lang(m: Message, state: FSMContext):
+    await state.clear()
+    await m.answer(t(await get_lang(m.from_user.id), "choose_lang"), reply_markup=lang_kb())
+
+
+@router.callback_query(F.data.startswith("lang:"))
+async def cb_lang(cb: CallbackQuery, state: FSMContext):
+    await state.clear()
+    lang = cb.data.split(":", 1)[1]
+    await set_lang(cb.from_user.id, lang)
+    await cb.answer(t(lang, "lang_set"))
+    try:
+        await cb.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await cb.message.answer(t(lang, "welcome"), reply_markup=menu_kb(lang))
 
 
 @router.message(Command("cancel"))
 async def cmd_cancel(m: Message, state: FSMContext):
+    lang = await get_lang(m.from_user.id)
     await state.clear()
-    await m.answer("Bekor qilindi.", reply_markup=MENU)
+    await m.answer(t(lang, "cancelled"), reply_markup=menu_kb(lang))
 
 
-@router.message(F.text == BTN_HELP)
+@router.message(F.text.in_(variants("btn_help")))
 async def on_help(m: Message):
-    await m.answer(HELP, reply_markup=MENU)
+    lang = await get_lang(m.from_user.id)
+    await m.answer(t(lang, "help"), reply_markup=menu_kb(lang))
 
 
 # ── browse / search ──
-@router.message(F.text == BTN_LATEST)
+@router.message(F.text.in_(variants("btn_latest")))
 async def on_latest(m: Message):
-    await m.answer(format_results(await queries.latest_loads(10), "🆕 Eng yangi yuklar"), reply_markup=MENU)
+    lang = await get_lang(m.from_user.id)
+    loads = await queries.latest_loads(10)
+    await m.answer(format_results(loads, t(lang, "latest_title"), lang), reply_markup=menu_kb(lang))
 
 
-@router.message(F.text == BTN_SEARCH)
+@router.message(F.text.in_(variants("btn_search")))
 async def on_search(m: Message, state: FSMContext):
+    lang = await get_lang(m.from_user.id)
     await state.set_state(Search.origin)
-    await m.answer("Qayerdan? (masalan: Toshkent, Qashqadaryo, Rossiya)")
+    await m.answer(t(lang, "ask_origin"))
 
 
 @router.message(Search.origin)
 async def search_origin(m: Message, state: FSMContext):
+    lang = await get_lang(m.from_user.id)
     await state.update_data(origin=(m.text or "").strip())
     await state.set_state(Search.destination)
-    await m.answer("Qayerga? (farqi yo'q bo'lsa '-')")
+    await m.answer(t(lang, "ask_dest"))
 
 
 @router.message(Search.destination)
-async def search_do(m: Message, state: FSMContext):
+async def search_dest(m: Message, state: FSMContext):
+    lang = await get_lang(m.from_user.id)
     data = await state.get_data()
     origin = data.get("origin", "")
     dest = (m.text or "").strip()
@@ -180,101 +165,87 @@ async def search_do(m: Message, state: FSMContext):
     dest = "" if dest in ("-", "—", "") else dest
     await state.clear()
     _search_ctx[m.from_user.id] = {"origin": origin, "dest": dest, "truck": "", "offset": 0}
-    await m.answer("🚚 Mashina turi? (ixtiyoriy — tanlamasangiz hammasi)", reply_markup=_truck_inline())
+    await m.answer(t(lang, "ask_truck"), reply_markup=truck_kb(lang))
 
 
 @router.callback_query(F.data.startswith("st:"))
 async def cb_search_truck(cb: CallbackQuery):
+    lang = await get_lang(cb.from_user.id)
     await cb.answer()
     ctx = _search_ctx.get(cb.from_user.id)
     if not ctx:
-        await cb.message.answer("Qidiruv eskirgan. Qaytadan qidiring 🔍", reply_markup=MENU)
+        await cb.message.answer(t(lang, "search_expired"), reply_markup=menu_kb(lang))
         return
-    t = cb.data.split(":", 1)[1]
-    truck = "" if t == "any" else t
+    code = cb.data.split(":", 1)[1]
+    truck = "" if code == "any" else code
     try:
         await cb.message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
-    await _send_search_page(cb.message, cb.from_user.id, ctx["origin"], ctx["dest"], truck, 0)
+    await _send_page(cb.message, cb.from_user.id, lang, ctx["origin"], ctx["dest"], truck, 0)
 
 
-async def _send_search_page(target, uid, origin, dest, truck, offset):
+async def _send_page(target, uid, lang, origin, dest, truck, offset):
     loads = await queries.search_loads(origin=origin, destination=dest, truck_type=truck,
                                        limit=PAGE_SIZE + 1, offset=offset)
     has_more = len(loads) > PAGE_SIZE
     loads = loads[:PAGE_SIZE]
-    tlabel = f" · {truck}" if truck else ""
-    header = f"🔍 {origin or 'hamma'} → {dest or 'hamma'}{tlabel}"
+    any_word = t(lang, "any")
+    tlabel = f" · {t(lang, 'tk_' + truck)}" if truck else ""
+    header = f"🔍 {origin or any_word} → {dest or any_word}{tlabel}"
     if not loads:
         _search_ctx.pop(uid, None)
-        await target.answer("Boshqa yuk yo\'q." if offset else format_results([], header), reply_markup=MENU)
+        text = t(lang, "no_more") if offset else format_results([], header, lang)
+        await target.answer(text, reply_markup=menu_kb(lang))
         return
     _search_ctx[uid] = {"origin": origin, "dest": dest, "truck": truck, "offset": offset}
     kb = None
     if has_more:
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Keyingi ➡️", callback_data="srch_more")]])
-    await target.answer(format_results(loads, header), reply_markup=kb)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=t(lang, "next"), callback_data="srch_more")]])
+    await target.answer(format_results(loads, header, lang), reply_markup=kb)
 
 
 @router.callback_query(F.data == "srch_more")
 async def cb_more(cb: CallbackQuery):
+    lang = await get_lang(cb.from_user.id)
     await cb.answer()
     ctx = _search_ctx.get(cb.from_user.id)
     if not ctx:
-        await cb.message.answer("Qidiruv eskirgan. Qaytadan qidiring 🔍", reply_markup=MENU)
+        await cb.message.answer(t(lang, "search_expired"), reply_markup=menu_kb(lang))
         return
     try:
         await cb.message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
-    await _send_search_page(cb.message, cb.from_user.id, ctx["origin"], ctx["dest"],
-                            ctx.get("truck", ""), ctx["offset"] + PAGE_SIZE)
+    await _send_page(cb.message, cb.from_user.id, lang, ctx["origin"], ctx["dest"],
+                     ctx.get("truck", ""), ctx["offset"] + PAGE_SIZE)
 
 
-# ── posting ──
-@router.message(F.text == BTN_POST)
+# ── posting a load ──
+@router.message(F.text.in_(variants("btn_post")))
 async def on_post(m: Message, state: FSMContext):
+    lang = await get_lang(m.from_user.id)
     await state.set_state(Post.filling)
-    await state.update_data(kind="load", idx=0, answers={})
-    await m.answer("📦 Yuk e'loni.\n\n" + _prompt_for(SEQ["load"][0], "load"))
+    await state.update_data(idx=0, answers={})
+    await m.answer(t(lang, "post_intro") + t(lang, PROMPT_KEY[SEQ[0]]))
 
 
 @router.message(Post.filling)
 async def post_step(m: Message, state: FSMContext):
-    text = (m.text or "").strip()
-    if text == KIND_CANCEL:
-        await state.clear()
-        await m.answer("Bekor qilindi.", reply_markup=MENU)
-        return
-
+    lang = await get_lang(m.from_user.id)
     data = await state.get_data()
-    kind = data.get("kind")
-
-    if not kind:
-        kind = {KIND_LOAD: "load", KIND_GOODS: "goods", KIND_TRUCK: "truck"}.get(text)
-        if not kind:
-            await m.answer("Iltimos, tugmalardan birini tanlang.", reply_markup=KIND_KB)
-            return
-        await state.update_data(kind=kind, idx=0, answers={})
-        first = SEQ[kind][0]
-        await m.answer(_prompt_for(first, kind))
-        return
-
     idx = data.get("idx", 0)
     answers = data.get("answers", {})
-    seq = SEQ[kind]
-    field = seq[idx]
-    answers[field] = _clean(field, text)
+    answers[SEQ[idx]] = _clean(SEQ[idx], (m.text or "").strip())
     idx += 1
     await state.update_data(idx=idx, answers=answers)
 
-    if idx < len(seq):
-        await m.answer(_prompt_for(seq[idx], kind))
+    if idx < len(SEQ):
+        await m.answer(t(lang, PROMPT_KEY[SEQ[idx]]))
         return
 
-    payload = _build_payload(answers)
-    new_id = await queries.insert_listing(payload, kind, str(m.from_user.id))
+    new_id = await queries.insert_listing(_build_payload(answers), "load", str(m.from_user.id))
     await state.clear()
 
     from ..db import SessionLocal
@@ -282,7 +253,7 @@ async def post_step(m: Message, state: FSMContext):
     from sqlalchemy import select
     async with SessionLocal() as s:
         load = (await s.execute(select(Load).where(Load.id == new_id))).scalar_one()
-    await m.answer("✅ E'loningiz joylandi:\n\n" + format_load(load), reply_markup=MENU)
+    await m.answer(t(lang, "posted_ok") + format_load(load, lang), reply_markup=menu_kb(lang))
 
 
 def _clean(field: str, text: str):
@@ -315,45 +286,49 @@ def _build_payload(answers: dict) -> dict:
 
 
 # ── saved routes + notifications ──
-def _sub_label(sub) -> str:
-    t = f" · {sub.truck_type}" if sub.truck_type else ""
-    return f"{sub.origin or 'hamma'} → {sub.destination or 'hamma'}{t}"
+def _sub_label(sub, lang) -> str:
+    any_word = t(lang, "any")
+    extra = f" · {sub.truck_type}" if sub.truck_type else ""
+    return f"{sub.origin or any_word} → {sub.destination or any_word}{extra}"
 
 
-_ADD_KB = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="➕ Yo'nalish qo'shish", callback_data="addroute")]])
-
-
-@router.message(F.text == BTN_ROUTES)
+@router.message(F.text.in_(variants("btn_routes")))
 async def on_routes(m: Message, state: FSMContext):
+    lang = await get_lang(m.from_user.id)
     await state.clear()
+    add_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "routes_add"), callback_data="addroute")]])
     subs = await subscriptions.list_subscriptions(m.from_user.id)
     if not subs:
-        await m.answer("Sizda saqlangan yo'nalish yo'q.\n\nYo'nalish saqlang — o'sha yo'nalishda yangi yuk chiqishi bilan xabar beraman.",
-                       reply_markup=_ADD_KB)
+        await m.answer(t(lang, "routes_none"), reply_markup=add_kb)
         return
-    await m.answer("🔔 <b>Saqlangan yo'nalishlaringiz:</b>")
+    await m.answer(t(lang, "routes_list"))
     for sub in subs:
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"delsub:{sub.id}")]])
-        await m.answer(_sub_label(sub), reply_markup=kb)
-    await m.answer("Yana qo'shasizmi?", reply_markup=_ADD_KB)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=t(lang, "routes_del"), callback_data=f"delsub:{sub.id}")]])
+        await m.answer(_sub_label(sub, lang), reply_markup=kb)
+    await m.answer(t(lang, "routes_more"), reply_markup=add_kb)
 
 
 @router.callback_query(F.data == "addroute")
 async def cb_add_route(cb: CallbackQuery, state: FSMContext):
+    lang = await get_lang(cb.from_user.id)
     await state.set_state(Route.origin)
-    await cb.message.answer("Qayerdan? (masalan: Toshkent)")
+    await cb.message.answer(t(lang, "ask_origin"))
     await cb.answer()
 
 
 @router.message(Route.origin)
 async def route_origin(m: Message, state: FSMContext):
+    lang = await get_lang(m.from_user.id)
     await state.update_data(origin=(m.text or "").strip())
     await state.set_state(Route.destination)
-    await m.answer("Qayerga? (farqi yo'q bo'lsa '-')")
+    await m.answer(t(lang, "ask_dest"))
 
 
 @router.message(Route.destination)
 async def route_dest(m: Message, state: FSMContext):
+    lang = await get_lang(m.from_user.id)
     data = await state.get_data()
     origin = data.get("origin", "")
     origin = "" if origin in ("-", "—") else origin
@@ -361,23 +336,27 @@ async def route_dest(m: Message, state: FSMContext):
     dest = "" if dest in ("-", "—", "") else dest
     await state.clear()
     await subscriptions.add_subscription(m.from_user.id, origin, dest)
-    await m.answer(f"✅ Saqlandi: <b>{origin or 'hamma'} → {dest or 'hamma'}</b>\nShu yo'nalishda yangi yuk chiqsa, darhol xabar beraman.", reply_markup=MENU)
+    any_word = t(lang, "any")
+    route = f"{origin or any_word} → {dest or any_word}"
+    await m.answer(t(lang, "route_saved", route=route), reply_markup=menu_kb(lang))
 
 
 @router.callback_query(F.data.startswith("delsub:"))
 async def cb_del_route(cb: CallbackQuery):
+    lang = await get_lang(cb.from_user.id)
     ok = await subscriptions.delete_subscription(int(cb.data.split(":")[1]), cb.from_user.id)
-    await cb.answer("O'chirildi" if ok else "Topilmadi")
+    await cb.answer(t(lang, "deleted") if ok else t(lang, "not_found"))
     if ok and cb.message:
         try:
-            await cb.message.edit_text("🗑 O'chirildi")
+            await cb.message.edit_text(t(lang, "deleted_mark"))
         except Exception:
             pass
 
 
 @router.message()
 async def fallback(m: Message):
-    await m.answer("Menyudan tanlang 👇", reply_markup=MENU)
+    lang = await get_lang(m.from_user.id)
+    await m.answer(t(lang, "menu_hint"), reply_markup=menu_kb(lang))
 
 
 async def main():
@@ -386,8 +365,9 @@ async def main():
     await init_db()
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(storage=MemoryStorage())
+    dp.update.outer_middleware(UsageMiddleware())
     dp.include_router(router)
-    logging.info("Sarbon24 bot started.")
+    logging.info("Sarbon24 bot started (uz/kk/ru).")
     await dp.start_polling(bot)
 
 

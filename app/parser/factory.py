@@ -13,6 +13,9 @@ def get_parser(provider: str, gemini_key: str = "", openai_key: str = "") -> LLM
         if provider == "openai":
             from .openai_p import OpenAIParser
             return OpenAIParser(openai_key)
+        if provider in ("local", "ollama"):
+            from .local_p import LocalParser
+            return LocalParser()
     except Exception as exc:
         print(f"[parser] provider '{provider}' unavailable ({exc}); using mock parser")
     return MockParser()

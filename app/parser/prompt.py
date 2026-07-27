@@ -18,22 +18,30 @@ CRITICAL FIELD RULES:
   several directions = several separate loads. NEVER mix cities from different directions:
   e.g. "Borisov-Tashkent" and "Borisov-Navoi" are TWO loads (Borisov→Tashkent and Borisov→Navoi),
   NOT one "Tashkent-Navoi". Country flags/emojis are noise — ignore them.
+- Keep the place name EXACTLY as written (city OR district OR region OR country). Do NOT convert a
+  district to its region — write "Kitob" as "Kitob", not "Qashqadaryo". The app handles the
+  region/district/country hierarchy itself.
 - truck_type: the VEHICLE/trailer type(s) ONLY, from: tent, ref, isotherm, flatbed, container,
-  dump, other. Words like "тент", "фура", "tent", "реф", "ref", "изотерм", "борт", "контейнер"
-  are truck_type — NEVER cargo. If SEVERAL types are accepted (e.g. "tent ref", "тент/реф"),
-  list ALL of them comma-separated: "tent, ref". If it says "farqi yo'q" / "no matter" / no type
-  is given, leave truck_type EMPTY (means any truck).
-- cargo_type: WHAT the goods physically are (e.g. "metal rulon", "paxta", "steklovata", "meva",
-  "масло"). NEVER put a truck/trailer word here.
-- truck_count: how many trucks (a number, e.g. "тент 13" -> 13), else null.
-- weight_tons: load amount in tons (number), else null.
+  dump, isuzu, paravoz, other. Words like "тент", "фура", "tent", "реф", "ref", "изотерм",
+  "борт", "контейнер" are truck_type — NEVER cargo.
+    * "paravoz"/"паравоз"/"паровоз"/"автопоезд" is a SEPARATE trailer/road-train type — list it IN
+      ADDITION to the others. "тент паравоз" -> "tent, paravoz" (NOT just "tent").
+    * "isuzu" (also isuzi/исузу; "kichik/katta isuzu" = small/big) is a truck type -> "isuzu",
+      INCLUDING when written as "isuzu kerak" / "katta isuzu kerak" (an isuzu is needed).
+    * If SEVERAL types are accepted (e.g. "tent ref", "тент/реф"), list ALL comma-separated: "tent, ref".
+    * If it says "farqi yo'q" / "no matter" / no type is given, leave truck_type EMPTY (any truck).
+- cargo_type: WHAT the goods physically are (e.g. "metal rulon", "paxta", "granula", "steklovata",
+  "meva", "масло", "bolgariskiy"/"болгарский" = qalampir/pepper). NEVER put a truck word here.
+- truck_count: how many trucks. Read "20 mashina", "20 машина", "5 та", "тент 13" -> 20/5/13, else null.
+- weight_tons: load amount in tons (a number), else null. For a RANGE like "22-23т" take the FIRST
+  number (22). "зад"/"задняя"/"полная" are NOT weight — they go to comment.
 - price: set price_amount ONLY if a currency is shown. Map $ -> USD, so'm/sum/сум -> UZS,
   руб/rub -> RUB, тенге/tenge -> KZT, any other -> that currency. A BARE number with NO currency
-  sign (e.g. "2000", "4200") -> leave price_amount null AND price_currency "". Do NOT guess USD
-  or UZS for bare numbers.
+  sign (e.g. "2000", "4200") -> leave price_amount null AND price_currency "". Do NOT guess.
 - contact_phone: ALL phone numbers, comma-separated.
-- comment: EVERY other detail not captured above (dates, conditions, payment terms, notes).
-  Nothing from the message may be lost. If unsure where a detail goes, put it in comment.
+- comment: EVERY other real detail — loading dates ("на 26.07", "26-29.07"), unloading side
+  ("зад"/"задняя"), payment terms, conditions, notes. Keep it CONCISE: drop pure noise (emojis,
+  advertising/subscribe lines), but never lose a real detail.
 - language_detected: uz-latn, uz-cyrl, ru, kk, tg, or other.
 
 REQUIRED fields (always present in these posts — always fill them): origin_city (From),
@@ -80,9 +88,7 @@ _PROMPT_CACHE: dict[int, str] = {}
 
 
 def build_system_prompt(limit: int = 30) -> str:
-    # Memoized: the system prompt is static, so build it once per process. Keeping it
-    # byte-identical across every call is what lets OpenAI (50% off) and Gemini flash
-    # (~75% off) cache the repeated prefix — the message is the only variable part.
+    # Memoized + byte-identical across calls so providers cache the repeated prefix.
     if limit in _PROMPT_CACHE:
         return _PROMPT_CACHE[limit]
     parts = [SYSTEM_PROMPT]
@@ -103,3 +109,18 @@ def build_system_prompt(limit: int = 30) -> str:
 
 def user_prompt(text: str) -> str:
     return f"Extract every load from this message:\n\n{text}"
+
+
+def batch_user_prompt(texts: list[str]) -> str:
+    """Pack several messages into ONE request — 10 messages per call = 10x fewer requests."""
+    parts = ["You are given SEVERAL separate Telegram messages, numbered below.",
+             "Extract loads from EACH message INDEPENDENTLY — never merge routes across messages.",
+             "",
+             'Return ONLY JSON: {"results": [{"i": <number>, "loads": [ {load}, ... ]}, ...]}',
+             "Include an entry for EVERY number, using an empty list when a message has no load.",
+             ""]
+    for idx, text in enumerate(texts, 1):
+        parts.append(f"### MESSAGE {idx}")
+        parts.append(text)
+        parts.append("")
+    return "\n".join(parts)

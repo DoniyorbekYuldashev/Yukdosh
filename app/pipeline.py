@@ -5,12 +5,14 @@ import hashlib
 import re
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 
 from .db import SessionLocal
 from .models import Group, Setting, RawMessage, Load
 from .parser.factory import get_parser
 from .parser.dedup import dedup_hash
+from .parser.normalize import canonicalize_trucks
+from .parser.geo import has_known_place
 from .scraper import telethon_client
 from . import config
 
@@ -18,6 +20,7 @@ DEDUP_WINDOW_HOURS = 24    # collapse repeats of the same load within this windo
 PARSE_CONCURRENCY = 5      # how many messages to parse at once
 RAW_RETENTION_DAYS = 14    # delete already-parsed raw messages older than this (keeps DB lean)
 MAX_PARSE_PER_RUN = 200    # parse newest N queued messages per run (prioritise fresh loads)
+BATCH_SIZE = 10            # messages packed into ONE API call -> 10x fewer requests (RPD limits)
 
 _NOISE_RE = re.compile(r"https?://\S+|t\.me/\S+|@\w+")
 
@@ -45,6 +48,24 @@ def _looks_like_junk(text: str) -> bool:
 
 def _dedup_key(text: str) -> str:
     return hashlib.md5(_text_signal(text).encode("utf-8")).hexdigest()
+
+
+_TON_RE = re.compile(r"\d+\s*(t|т|ton|тон|tonna|kg|кг|kub|куб|m3|м3)", re.I)
+
+
+def _looks_like_load(text: str) -> bool:
+    """Cheap LOCAL check before spending an API call: does this message plausibly contain a
+    freight load? Real posts carry a phone, a known place, a truck word or a tonnage.
+    Group chatter ('ok', 'bormi', 'rahmat') has none — and never costs a call."""
+    if not text or not text.strip():
+        return False
+    if _extract_phones(text):
+        return True
+    if canonicalize_trucks(text):
+        return True
+    if _TON_RE.search(text):
+        return True
+    return has_known_place(text)
 
 
 def _is_meaningful(pl) -> bool:
@@ -77,6 +98,20 @@ def _fill_shared_phone(loads, raw_text: str) -> None:
     for pl in loads:
         if not (pl.contact_phone or "").strip():
             pl.contact_phone = fallback
+
+
+def _fill_truck_from_text(loads, raw_text: str) -> None:
+    """If a single-load message names a truck (e.g. 'isuzu kerak', 'tent') but the model left
+    truck_type empty, recover it from the message text. Single-load only, to avoid mixing
+    truck types across different directions in a multi-load post."""
+    if len(loads) != 1:
+        return
+    pl = loads[0]
+    if (pl.truck_type or "").strip():
+        return
+    t = canonicalize_trucks(raw_text)
+    if t:
+        pl.truck_type = t
 
 
 async def run_pipeline() -> dict:
@@ -149,7 +184,7 @@ async def run_pipeline() -> dict:
         prefiltered_junk = 0
         by_text: dict[str, list] = {}
         for r in unprocessed:
-            if _looks_like_junk(r.text):
+            if _looks_like_junk(r.text) or not _looks_like_load(r.text):
                 r.processed = True
                 prefiltered_junk += 1
                 continue
@@ -166,18 +201,43 @@ async def run_pipeline() -> dict:
         loop = asyncio.get_event_loop()
         sem = asyncio.Semaphore(PARSE_CONCURRENCY)
 
-        async def _parse(raw):
+        async def _parse_group(raws):
+            """One API call for up to BATCH_SIZE messages."""
             async with sem:
                 try:
-                    pl = await loop.run_in_executor(None, parser.parse, raw.text)
-                    return raw, pl, None
+                    batched = await loop.run_in_executor(
+                        None, parser.parse_batch, [r.text for r in raws])
+                    return [(r, batched[i] if i < len(batched) else [], None)
+                            for i, r in enumerate(raws)]
                 except Exception as exc:
-                    return raw, None, exc
+                    return [(r, None, exc) for r in raws]
 
-        results = await asyncio.gather(*[_parse(r) for r in to_parse]) if to_parse else []
+        # Parse in small chunks with a CIRCUIT BREAKER: if a whole chunk fails (dead key,
+        # exhausted quota, hard rate limit) stop the run instead of firing hundreds of
+        # doomed calls every cycle.
+        groups = [to_parse[i:i + BATCH_SIZE] for i in range(0, len(to_parse), BATCH_SIZE)]
+        results = []
+        api_error = ""
+        api_calls = 0
+        for _i in range(0, len(groups), 2):          # 2 batched calls per wave
+            _wave = groups[_i:_i + 2]
+            _out = await asyncio.gather(*[_parse_group(g) for g in _wave])
+            api_calls += len(_wave)
+            _res = [item for sub in _out for item in sub]
+            results.extend(_res)
+            _errs = [e for _, _, e in _res if e is not None]
+            if _errs and len(_errs) == len(_res):
+                api_error = str(_errs[0])
+                _low = api_error.lower()
+                if "insufficient_quota" in _low or "exceeded your current quota" in _low:
+                    print("[pipeline] STOPPED: API QUOTA EXHAUSTED — add credit or switch "
+                          f"provider in Settings.\n           {api_error[:300]}")
+                else:
+                    print(f"[pipeline] STOPPED: every call failed — {api_error[:300]}")
+                break
 
         # 4) Dedup + store (DB work stays sequential to avoid write contention).
-        parsed, deduped, skipped_junk = 0, 0, 0
+        parsed, deduped, skipped_junk, rate_limited = 0, 0, 0, 0
         window_start = datetime.now(timezone.utc) - timedelta(hours=DEDUP_WINDOW_HOURS)
 
         for raw, loads, err in results:
@@ -185,7 +245,7 @@ async def run_pipeline() -> dict:
                 emsg = str(err)
                 if "429" in emsg or "rate_limit" in emsg.lower() or "quota" in emsg.lower():
                     # transient limit — leave unprocessed so it retries next run (no data loss)
-                    print(f"[pipeline] rate-limited on msg {raw.id} — will retry")
+                    rate_limited += 1
                     continue
                 raw.parse_attempts = (raw.parse_attempts or 0) + 1
                 if raw.parse_attempts >= 3:
@@ -194,6 +254,7 @@ async def run_pipeline() -> dict:
                 continue
             raw.processed = True
             _fill_shared_phone(loads, raw.text)   # shared end-of-post number -> all directions
+            _fill_truck_from_text(loads, raw.text)   # recover 'isuzu kerak' etc. into truck_type
             meaningful = [pl for pl in loads if _is_meaningful(pl)]
             if not meaningful:
                 skipped_junk += 1
@@ -222,8 +283,17 @@ async def run_pipeline() -> dict:
                 ))
                 parsed += 1
 
+        if rate_limited:
+            print(f"[pipeline] {rate_limited} messages hit the API limit — will retry next run")
+
         # prune old, already-processed raw messages so the DB stays lean on active groups
         prune_before = datetime.now(timezone.utc) - timedelta(days=RAW_RETENTION_DAYS)
+        _stale = select(RawMessage.id).where(
+            RawMessage.processed == True,  # noqa: E712
+            RawMessage.posted_at < prune_before)
+        # loads point at raw_messages — unlink first (loads keep their own raw_text copy)
+        await s.execute(update(Load).where(Load.raw_message_id.in_(_stale))
+                        .values(raw_message_id=None).execution_options(synchronize_session=False))
         await s.execute(delete(RawMessage).where(
             RawMessage.processed == True,  # noqa: E712
             RawMessage.posted_at < prune_before).execution_options(synchronize_session=False))
@@ -237,8 +307,10 @@ async def run_pipeline() -> dict:
         "loads_created": parsed,
         "duplicates_skipped": deduped,
         "junk_skipped": skipped_junk + prefiltered_junk,
-        "api_calls": len(to_parse),                 # messages actually sent to the model
+        "api_calls": api_calls,                     # API REQUESTS made (batched)
         "prefiltered_junk": prefiltered_junk,       # skipped the model (noise)
         "duplicate_texts_skipped": duplicate_texts, # skipped the model (identical reposts)
+        "rate_limited": rate_limited,
+        "api_error": api_error[:300],
         "window": {"max_messages": global_max, "hours_back": global_hours},
     }

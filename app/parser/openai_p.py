@@ -3,8 +3,8 @@ quota games. Key from https://platform.openai.com/api-keys"""
 import json
 
 from .base import LLMParser
-from .prompt import build_system_prompt, user_prompt
-from .gemini import to_loads
+from .prompt import build_system_prompt, user_prompt, batch_user_prompt
+from .gemini import to_loads, split_batch
 from ..schemas import ParsedLoad
 
 
@@ -29,3 +29,16 @@ class OpenAIParser(LLMParser):
             ],
         )
         return to_loads(json.loads(resp.choices[0].message.content))
+
+    def parse_batch(self, texts: list[str]) -> list[list[ParsedLoad]]:
+        if not texts:
+            return []
+        resp = self._client.chat.completions.create(
+            model=self._model,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": self._system},
+                {"role": "user", "content": batch_user_prompt(texts)},
+            ],
+        )
+        return split_batch(json.loads(resp.choices[0].message.content), len(texts))
