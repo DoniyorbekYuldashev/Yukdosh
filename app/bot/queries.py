@@ -3,7 +3,6 @@
 Search matches the driver's typed place through the geo hierarchy (country > region > district)
 and an optional truck-type filter, and only returns loads within the freshness window
 (load_active_hours) so drivers see current loads."""
-import re
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, desc, or_, func
@@ -15,6 +14,7 @@ from ..parser.dedup import dedup_hash
 from ..parser.normalize import canonical_city, canonicalize_trucks
 from ..parser.geo import location_match
 from ..schemas import ParsedLoad
+from .clean import clean_original
 
 
 def _norm(s: str) -> str:
@@ -63,21 +63,14 @@ async def search_loads(origin: str = "", destination: str = "", truck_type: str 
     return rows[offset:offset + limit]
 
 
-# links and standalone @mentions would reveal the source group / poster — strip them
-_SOURCE_RE = re.compile(r"(?:https?://|www\.)\S+|(?<![\w.])t\.me/\S+|(?<![\w.])@\w+")
-
-
 async def original_text(load_id: int) -> str:
-    """The scraped post behind a load, without links/@mentions. "" if gone or bot-posted."""
+    """The scraped post behind a load, cleaned of source hints and ads. "" if gone/bot-posted."""
     async with SessionLocal() as s:
         row = (await s.execute(select(Load.raw_text, Load.source_group)
                                .where(Load.id == load_id))).first()
     if not row or row.source_group == "bot":
         return ""
-    text = _SOURCE_RE.sub("", row.raw_text or "")
-    text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text).strip()
-    return text[:3800]   # Telegram message limit is 4096 incl. the title
+    return clean_original(row.raw_text)[:3800]   # Telegram limit is 4096 incl. the title
 
 
 async def _latest(where_clause, limit):

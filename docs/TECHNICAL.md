@@ -291,9 +291,13 @@ row 3 `🆕 Yangi yuklar` | `ℹ️ Yordam`.
 Empty-truck cards use 🚛; goods listings have their own layout (`format_goods`). All load
 fields are HTML-escaped. **No source link** (removed 2026-10-16): `formatting.original_kb()`
 adds `📄 1…N` buttons (or one `📄 Asl matn` for a single card) with `callback_data="raw:<id>"`;
-`cb_original` → `queries.original_text(id)` reads `raw_text` by primary key, strips links and
-@mentions (`_SOURCE_RE`), caps at 3,800 chars and sends it; a load already deleted by retention
-→ "not found" alert. "Keyingi" keeps the previous page's 📄 buttons.
+`cb_original` → `queries.original_text(id)` reads `raw_text` by primary key, cleans it with
+`clean.clean_original` (drops ad/promo lines — other bots, channels, groups, "Admin:",
+"kirish:", "orqali yuborildi" — then strips links, @mentions, #hashtags), caps at 3,800 chars
+and sends it; a load already deleted by retention → "not found" alert. "Keyingi" keeps the
+previous page's 📄 buttons. Rules were calibrated on 5,675 real posts (13 ad lines removed,
+0 phones, 0 place names lost): "bot" only as a standalone word (-obot place names), no
+"Telegram" rule (contact lines), and lines containing a 9+ digit phone are never dropped.
 
 ---
 

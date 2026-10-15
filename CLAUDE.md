@@ -52,7 +52,7 @@ Use `py`, not `python`. `pip.exe` is blocked by Windows Application Control → 
 py run_scraper.py   # scraper + parser engine (start once, leave running)
 py run_app.py       # bot + web admin (restart freely after UI/bot changes)
 py run_all.py       # all three together (simple mode)
-py run_tests.py     # zero-dependency test runner — must print "PASSED 17 FAILED 0" (or more)
+py run_tests.py     # zero-dependency test runner — must print "PASSED 34 FAILED 0" (or more)
 ```
 Double-click equivalents: `run_scraper.bat`, `run_app.bat`. Admin: http://127.0.0.1:8000
 
@@ -100,7 +100,8 @@ app/main.py              FastAPI admin: /, /settings, /groups/*, /run, /api/load
 app/web/templates/       base.html, dashboard.html, settings.html
 app/bot/main.py          aiogram bot: menu, search, latest, post a load, saved routes, /lang
 app/bot/i18n.py          ALL user-facing strings in uz / kk / ru; t(), variants(), get/set_lang
-app/bot/formatting.py    load card rendering (HTML)
+app/bot/formatting.py    load card rendering (HTML), 📄 Asl matn buttons (original_kb)
+app/bot/clean.py         strip source hints + ad lines from original text / comments
 app/bot/queries.py       search_loads (geo + truck filter + freshness), latest, insert_listing
 app/bot/subscriptions.py saved routes CRUD
 app/parser/prompt.py     SYSTEM_PROMPT + build_system_prompt() + user_prompt() + batch_user_prompt()
@@ -155,7 +156,11 @@ Sarbon24_*.docx/pdf      research docs + Uzbek pitch deck (not code; filenames n
    the DB column `poster_username` stays). **Never reveal the source group** — no "manba:
    @group" line and, since 2026-10-16, **no `🔗 E'lon manbasi` link either** (owner: it teaches
    users to bypass the bot). Instead a **📄 Asl matn** button (`raw:<load_id>`) shows the original
-   post text inside the bot, with links and @mentions stripped (`queries.original_text`).
+   post text inside the bot, cleaned by `app/bot/clean.py`: links, @mentions, #hashtags and
+   whole ad lines (other bots/channels/groups, "Admin:", "kirish:", "orqali yuborildi"…) are
+   removed; card comments lose links/@mentions/#hashtags too. Calibrated on 5,675 real posts —
+   "bot" only as a separate word (places end in -obot: Qo'shrabot, Bekobot), never "Telegram"
+   (contact lines), and **a line with a phone number is never dropped**. Tests guard all three.
 10. **No price → show "kelishiladi" / "келісіледі" / "договорная"** (key `price_none`).
 11. **Secrets live only in `.env`** (never commit; `.gitignore`/`.dockerignore` cover it).
     In Docker, `TG_SESSION` is set by `docker-compose.yml`; `DATABASE_URL` is built from

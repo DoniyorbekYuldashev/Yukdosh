@@ -4,6 +4,7 @@ from html import escape
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from .clean import strip_source
 from .i18n import t, DEFAULT_LANG
 
 TASHKENT = timezone(timedelta(hours=5))  # Uzbekistan time (UTC+5)
@@ -65,8 +66,9 @@ def _tail(l, lang):
 
 
 def _common_tail(l, lines, lang):
-    if getattr(l, "comment", ""):
-        lines.append(f"📝 {escape(l.comment)}")
+    comment = strip_source(getattr(l, "comment", "")).strip(" ,;")
+    if comment:
+        lines.append(f"📝 {escape(comment)}")
     tail = _tail(l, lang)
     if tail:
         lines.append(tail)

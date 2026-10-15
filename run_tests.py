@@ -1,6 +1,9 @@
 """Zero-dependency test runner — no pytest, no pip needed.
 Run:  py run_tests.py
 Checks the core logic: geo hierarchy, truck types, and deduplication."""
+import sys
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows console: emoji/Cyrillic safe
+
 from app.parser.geo import location_match, classify_query
 from app.parser.normalize import canonicalize_trucks as ct
 from app.schemas import ParsedLoad
@@ -48,7 +51,7 @@ print("\n[Cards: no source link, numbered, 'Asl matn' buttons; group posting]")
 from types import SimpleNamespace
 from app.broadcast import normalize_chat, build_post
 from app.bot.formatting import format_load, format_results, original_kb
-from app.bot.queries import _SOURCE_RE
+from app.bot.clean import clean_original, strip_source
 check("t.me link -> @username", normalize_chat("https://t.me/yuk_guruh"), "@yuk_guruh")
 check("bare name -> @username", normalize_chat("yuk_guruh"), "@yuk_guruh")
 check("numeric chat id kept", normalize_chat("-1001234567890"), "-1001234567890")
@@ -68,9 +71,23 @@ check("one original-text button per scraped load (none for bot posts)",
       [b.callback_data for r in kb.inline_keyboard for b in r], ["raw:7"])
 check("single card gets a labelled button",
       original_kb([card], "uz").inline_keyboard[0][0].text.endswith("Asl matn"), True)
-check("original text loses links and @mentions",
-      _SOURCE_RE.sub("", "Tent kerak @Yuk_markazi https://t.me/x/1 tel 901234567 a@b.uz").split(),
+check("links, @mentions and #hashtags stripped",
+      strip_source("Tent kerak @Yuk_markazi https://t.me/x/1 #yuk tel 901234567 a@b.uz").split(),
       ["Tent", "kerak", "tel", "901234567", "a@b.uz"])
+ad = ("Toshkent - Qo'shrabot\nTent kerak, 20 t, 901234567\n"
+      "Yukingizni joylashtiring - LOGIT SMARTBOT uni hamkor Telegram guruhlariga tarqatadi.\n"
+      "LOGIT SMARTBOT'ga kirish:\nYuk Markazi guruhi\nKanal: @logist\nAdmin: @someone")
+check("ad / group / admin lines removed, load kept",
+      clean_original(ad), "Toshkent - Qo'shrabot\nTent kerak, 20 t, 901234567")
+check("-obot place names are not ads",
+      clean_original("Samarqand Qoshrabot\nNAMANGANDAN BEGOBOTGA TENT KERAK\nБУХОРО -АШХАБОТ"),
+      "Samarqand Qoshrabot\nNAMANGANDAN BEGOBOTGA TENT KERAK\nБУХОРО -АШХАБОТ")
+check("contact line mentioning Telegram keeps its phone",
+      clean_original("Tel +998910577979 (WhatsApp, Telegram, Imo)"), "Tel +998910577979 (WhatsApp, Telegram, Imo)")
+check("'Kanalizatsionnye truby' (sewer pipes) is cargo, not a channel",
+      clean_original("Груз: Канализационные трубы"), "Груз: Канализационные трубы")
+noted = SimpleNamespace(**{**vars(card), "comment": "Оплата нагляд, @kanal"})
+check("card comment loses @mentions", "@kanal" in format_load(noted, "uz"), False)
 text, used = build_post([card] * 3, "uz", "@yukdoshbot")
 check("digest holds all loads that fit", len(used), 3)
 check("digest ends with bot pointer", text.rstrip().endswith("@yukdoshbot"), True)
