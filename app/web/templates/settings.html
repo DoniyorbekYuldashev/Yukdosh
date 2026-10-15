@@ -84,6 +84,8 @@
         <input type="number" name="scheduler_interval_minutes" value="{{ cfg.scheduler_interval_minutes }}" min="1"></div>
       <div class="field"><label>Loads active for (hours)</label>
         <input type="number" name="load_active_hours" value="{{ cfg.load_active_hours }}" min="1"></div>
+      <div class="field"><label>Delete loads after (days, 0 = keep)</label>
+        <input type="number" name="load_retention_days" value="{{ cfg.load_retention_days or 5 }}" min="0"></div>
     </div>
   </div>
 

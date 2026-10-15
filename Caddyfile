@@ -1,4 +1,4 @@
-# Automatic HTTPS. Set DOMAIN in .env (e.g. admin.sarbon24.uz) with an A record to this server.
+# Automatic HTTPS. Set DOMAIN in .env (e.g. admin.yukdosh.uz) with an A record to this server.
 # With a real domain, Caddy fetches a free Let's Encrypt certificate automatically.
 {$DOMAIN:localhost} {
 	encode gzip

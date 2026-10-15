@@ -17,8 +17,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_latest": "🆕 Yangi yuklar",
         "btn_routes": "🔔 Yo'nalishlarim",
         "btn_help": "ℹ️ Yordam",
-        "welcome": "Assalomu alaykum! <b>Sarbon24</b> — yuk va haydovchilarni bog'laydi.\n\nQuyidagidan tanlang:",
-        "help": ("<b>Sarbon24 yordam</b>\n\n"
+        "welcome": "Assalomu alaykum! <b>Yukdosh</b> — yuk va haydovchilarni bog'laydi.\n\nQuyidagidan tanlang:",
+        "help": ("<b>Yukdosh yordam</b>\n\n"
                  "➕ Yuk e'lonini berish — o'z yukingizni joylang\n"
                  "🔍 Yuk qidirish — yo'nalish va mashina turi bo'yicha toping\n"
                  "🆕 Yangi yuklar — eng so'nggi yuklar\n"
@@ -58,11 +58,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "p_price": "💰 Narxi? (masalan: 45 mln so'm, yoki '-')",
         "p_phone": "📞 Telefon raqamingiz? ('-' → Telegram orqali)",
         "notify_new": "🔔 <b>Yangi yuk sizning yo'nalishingizda!</b>\n\n",
-        "price_none": "keltirilmagan",
+        "price_none": "kelishiladi",
         "today": "Bugun",
         "yesterday": "Kecha",
         "source_link": "E'lon manbasi",
-        "via_bot": "Sarbon24 orqali",
+        "via_bot": "Yukdosh orqali",
         "source": "manba",
         "goods": "Mahsulot",
         "tk_tent": "Tent", "tk_ref": "Refrijerator", "tk_isotherm": "Izoterm",
@@ -75,8 +75,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_latest": "🆕 Жаңа жүктер",
         "btn_routes": "🔔 Менің бағыттарым",
         "btn_help": "ℹ️ Көмек",
-        "welcome": "Сәлеметсіз бе! <b>Sarbon24</b> — жүк пен жүргізушіні байланыстырады.\n\nТөмендегіден таңдаңыз:",
-        "help": ("<b>Sarbon24 көмек</b>\n\n"
+        "welcome": "Сәлеметсіз бе! <b>Yukdosh</b> — жүк пен жүргізушіні байланыстырады.\n\nТөмендегіден таңдаңыз:",
+        "help": ("<b>Yukdosh көмек</b>\n\n"
                  "➕ Жүк жариялау — өз жүгіңізді жариялаңыз\n"
                  "🔍 Жүк іздеу — бағыт және көлік түрі бойынша табыңыз\n"
                  "🆕 Жаңа жүктер — соңғы жүктер\n"
@@ -116,11 +116,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "p_price": "💰 Бағасы? (мысалы: 500 мың теңге, немесе '-')",
         "p_phone": "📞 Телефон нөміріңіз? ('-' → Telegram арқылы)",
         "notify_new": "🔔 <b>Сіздің бағытыңызда жаңа жүк!</b>\n\n",
-        "price_none": "көрсетілмеген",
+        "price_none": "келісіледі",
         "today": "Бүгін",
         "yesterday": "Кеше",
         "source_link": "Жарнама көзі",
-        "via_bot": "Sarbon24 арқылы",
+        "via_bot": "Yukdosh арқылы",
         "source": "көзі",
         "goods": "Тауар",
         "tk_tent": "Тент", "tk_ref": "Рефрижератор", "tk_isotherm": "Изотерм",
@@ -133,8 +133,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_latest": "🆕 Новые грузы",
         "btn_routes": "🔔 Мои маршруты",
         "btn_help": "ℹ️ Помощь",
-        "welcome": "Здравствуйте! <b>Sarbon24</b> — связывает грузы и водителей.\n\nВыберите:",
-        "help": ("<b>Sarbon24 помощь</b>\n\n"
+        "welcome": "Здравствуйте! <b>Yukdosh</b> — связывает грузы и водителей.\n\nВыберите:",
+        "help": ("<b>Yukdosh помощь</b>\n\n"
                  "➕ Разместить груз — опубликуйте свой груз\n"
                  "🔍 Поиск груза — найдите по маршруту и типу машины\n"
                  "🆕 Новые грузы — последние грузы\n"
@@ -174,11 +174,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "p_price": "💰 Цена? (например: 45 млн сум, или '-')",
         "p_phone": "📞 Ваш номер телефона? ('-' → через Telegram)",
         "notify_new": "🔔 <b>Новый груз на вашем маршруте!</b>\n\n",
-        "price_none": "не указана",
+        "price_none": "договорная",
         "today": "Сегодня",
         "yesterday": "Вчера",
         "source_link": "Источник объявления",
-        "via_bot": "через Sarbon24",
+        "via_bot": "через Yukdosh",
         "source": "источник",
         "goods": "Товар",
         "tk_tent": "Тент", "tk_ref": "Рефрижератор", "tk_isotherm": "Изотерм",

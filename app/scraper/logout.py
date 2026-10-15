@@ -7,7 +7,7 @@ from .. import config
 
 
 async def main():
-    session_file = "sarbon_session.session"
+    session_file = config.TG_SESSION + ".session"
     try:
         from telethon import TelegramClient
         client = TelegramClient(session_file.replace(".session", ""),

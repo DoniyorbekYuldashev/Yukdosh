@@ -120,7 +120,7 @@ def _fetch_real_threaded(specs: list[dict]) -> list[dict]:
 
     async def _run(specs):
         from telethon import TelegramClient
-        client = TelegramClient("sarbon_session", int(config.TELEGRAM_API_ID), config.TELEGRAM_API_HASH)
+        client = TelegramClient(config.TG_SESSION, int(config.TELEGRAM_API_ID), config.TELEGRAM_API_HASH)
         await client.connect()
         if not await client.is_user_authorized():
             await client.disconnect()

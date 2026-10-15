@@ -1,4 +1,4 @@
-"""Sarbon24 driver bot (aiogram v3) — multilingual: Uzbek, Kazakh, Russian.
+"""Yukdosh driver bot (aiogram v3) — multilingual: Uzbek, Kazakh, Russian.
 
 Every user-facing string comes from i18n.t(lang, key). Menu buttons are matched across
 ALL languages, so a user who switched language still hits the right handler.
@@ -367,7 +367,7 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     dp.update.outer_middleware(UsageMiddleware())
     dp.include_router(router)
-    logging.info("Sarbon24 bot started (uz/kk/ru).")
+    logging.info("Yukdosh bot started (uz/kk/ru).")
     await dp.start_polling(bot)
 
 

@@ -24,8 +24,8 @@ if _env_file.exists():
 DATABASE_URL = _env("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError(
-        "DATABASE_URL is not set. Sarbon24 runs on PostgreSQL — put it in .env, e.g.\n"
-        "  DATABASE_URL=postgresql+asyncpg://postgres:YOUR_PASSWORD@localhost:5432/sarbon"
+        "DATABASE_URL is not set. Yukdosh runs on PostgreSQL — put it in .env, e.g.\n"
+        "  DATABASE_URL=postgresql+asyncpg://postgres:YOUR_PASSWORD@localhost:5432/yukdosh"
     )
 # Railway / Heroku / most managed Postgres give a plain 'postgres://' or 'postgresql://'
 # URL, but our async SQLAlchemy needs the asyncpg driver. Upgrade it automatically so you
@@ -38,6 +38,8 @@ elif DATABASE_URL.startswith("postgresql://"):
 # Telegram userbot credentials (optional; enables real scraping)
 TELEGRAM_API_ID = _env("TELEGRAM_API_ID")
 TELEGRAM_API_HASH = _env("TELEGRAM_API_HASH")
+# Where the userbot session file lives (without ".session"). Docker points this at a volume.
+TG_SESSION = _env("TG_SESSION", "yukdosh_session")
 TELEGRAM_PHONE = _env("TELEGRAM_PHONE")
 
 # Driver-facing bot token from @BotFather

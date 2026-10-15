@@ -18,7 +18,6 @@ from . import config
 
 DEDUP_WINDOW_HOURS = 24    # collapse repeats of the same load within this window
 PARSE_CONCURRENCY = 5      # how many messages to parse at once
-RAW_RETENTION_DAYS = 14    # delete already-parsed raw messages older than this (keeps DB lean)
 MAX_PARSE_PER_RUN = 200    # parse newest N queued messages per run (prioritise fresh loads)
 BATCH_SIZE = 10            # messages packed into ONE API call -> 10x fewer requests (RPD limits)
 
@@ -86,6 +85,35 @@ def _extract_phones(text: str) -> list[str]:
             if c not in out:
                 out.append(c)
     return out
+
+
+_PHONE_CAND = re.compile(r"\+?\d[\d\s\-()]{6,}\d")
+
+
+def _mask_phones(text: str) -> str:
+    """Remove phone numbers from text BEFORE it is sent to any external API (privacy /
+    data-minimization). A phone = a +-prefixed run, or 9+ digits (phones are 9-12; prices/
+    weights are shorter, so they survive). The real number is re-attached locally afterwards."""
+    def repl(m):
+        s = m.group(0)
+        digits = re.sub(r"\D", "", s)
+        if s.strip().startswith("+") or len(digits) >= 9:
+            return " "          # looks like a phone -> strip it
+        return s                # short number (price/weight/count) -> keep
+    return _PHONE_CAND.sub(repl, text or "")
+
+
+def _reattach_phones(loads, raw_text: str) -> None:
+    """Put the REAL phone back after masking. Overwrite with the number(s) extracted locally
+    from the ORIGINAL text WHEN we find them (the 99% normal case) — otherwise leave whatever
+    the model returned. So a normal phone is masked-then-restored, and an unusual format that
+    the regex can't parse falls back to the model instead of becoming an EMPTY cell."""
+    real = _extract_phones(raw_text)
+    if not real:
+        return  # nothing regex-detectable -> keep model's value (never blank it out)
+    joined = ", ".join(dict.fromkeys(p.strip() for p in real[:2]))
+    for pl in loads:
+        pl.contact_phone = joined
 
 
 def _fill_shared_phone(loads, raw_text: str) -> None:
@@ -206,7 +234,7 @@ async def run_pipeline() -> dict:
             async with sem:
                 try:
                     batched = await loop.run_in_executor(
-                        None, parser.parse_batch, [r.text for r in raws])
+                        None, parser.parse_batch, [_mask_phones(r.text) for r in raws])
                     return [(r, batched[i] if i < len(batched) else [], None)
                             for i, r in enumerate(raws)]
                 except Exception as exc:
@@ -253,7 +281,7 @@ async def run_pipeline() -> dict:
                 print(f"[pipeline] parse failed on msg {raw.id} (try {raw.parse_attempts}): {err}")
                 continue
             raw.processed = True
-            _fill_shared_phone(loads, raw.text)   # shared end-of-post number -> all directions
+            _reattach_phones(loads, raw.text)     # real phone (masked before API) re-attached; never blank
             _fill_truck_from_text(loads, raw.text)   # recover 'isuzu kerak' etc. into truck_type
             meaningful = [pl for pl in loads if _is_meaningful(pl)]
             if not meaningful:
@@ -286,17 +314,22 @@ async def run_pipeline() -> dict:
         if rate_limited:
             print(f"[pipeline] {rate_limited} messages hit the API limit — will retry next run")
 
-        # prune old, already-processed raw messages so the DB stays lean on active groups
-        prune_before = datetime.now(timezone.utc) - timedelta(days=RAW_RETENTION_DAYS)
-        _stale = select(RawMessage.id).where(
-            RawMessage.processed == True,  # noqa: E712
-            RawMessage.posted_at < prune_before)
-        # loads point at raw_messages — unlink first (loads keep their own raw_text copy)
-        await s.execute(update(Load).where(Load.raw_message_id.in_(_stale))
-                        .values(raw_message_id=None).execution_options(synchronize_session=False))
-        await s.execute(delete(RawMessage).where(
-            RawMessage.processed == True,  # noqa: E712
-            RawMessage.posted_at < prune_before).execution_options(synchronize_session=False))
+        # retention: old loads are long taken — delete them and their raw messages (0 = keep all)
+        retention = settings.get("load_retention_days", "5")
+        retention_days = int(retention) if str(retention).isdigit() else 5
+        if retention_days > 0:
+            prune_before = datetime.now(timezone.utc) - timedelta(days=retention_days)
+            await s.execute(delete(Load).where(Load.posted_at < prune_before)
+                            .execution_options(synchronize_session=False))
+            _stale = select(RawMessage.id).where(
+                RawMessage.processed == True,  # noqa: E712
+                RawMessage.posted_at < prune_before)
+            # loads point at raw_messages — unlink first (Postgres enforces the FK)
+            await s.execute(update(Load).where(Load.raw_message_id.in_(_stale))
+                            .values(raw_message_id=None).execution_options(synchronize_session=False))
+            await s.execute(delete(RawMessage).where(
+                RawMessage.processed == True,  # noqa: E712
+                RawMessage.posted_at < prune_before).execution_options(synchronize_session=False))
 
         await s.commit()
 

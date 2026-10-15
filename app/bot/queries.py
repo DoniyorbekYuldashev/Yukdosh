@@ -6,6 +6,7 @@ and an optional truck-type filter, and only returns loads within the freshness w
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, desc, or_, func
+from sqlalchemy.orm import defer
 
 from ..db import SessionLocal
 from ..models import Load, Setting
@@ -35,7 +36,7 @@ def _truck_ok(load_trucks: str, want: str) -> bool:
 async def _active_cutoff(s):
     """Datetime before which loads are considered stale (load_active_hours setting)."""
     row = (await s.execute(select(Setting).where(Setting.key == "load_active_hours"))).scalar_one_or_none()
-    hours = int(row.value) if row and str(row.value).isdigit() else 6
+    hours = int(row.value) if row and str(row.value).isdigit() else 12
     if hours <= 0:
         return None
     return datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -44,7 +45,9 @@ async def _active_cutoff(s):
 async def search_loads(origin: str = "", destination: str = "", truck_type: str = "",
                        limit: int = 10, offset: int = 0):
     async with SessionLocal() as s:
-        q = select(Load).where(Load.is_load == True, Load.listing_type != "goods")  # noqa: E712
+        # cards never show the original post text — skip it, it's most of each row's bytes
+        q = (select(Load).options(defer(Load.raw_text))
+             .where(Load.is_load == True, Load.listing_type != "goods"))  # noqa: E712
         cutoff = await _active_cutoff(s)
         if cutoff is not None:
             q = q.where(Load.posted_at >= cutoff)
@@ -61,7 +64,7 @@ async def search_loads(origin: str = "", destination: str = "", truck_type: str 
 
 async def _latest(where_clause, limit):
     async with SessionLocal() as s:
-        q = select(Load).where(where_clause)
+        q = select(Load).options(defer(Load.raw_text)).where(where_clause)
         cutoff = await _active_cutoff(s)
         if cutoff is not None:
             q = q.where(Load.posted_at >= cutoff)

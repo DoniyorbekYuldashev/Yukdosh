@@ -40,7 +40,7 @@ class ScraperWorker:
     async def _connect(self):
         from telethon import TelegramClient
         self._client = TelegramClient(
-            "sarbon_session", int(config.TELEGRAM_API_ID), config.TELEGRAM_API_HASH)
+            config.TG_SESSION, int(config.TELEGRAM_API_ID), config.TELEGRAM_API_HASH)
         await self._client.connect()
         if not await self._client.is_user_authorized():
             raise RuntimeError("Telegram userbot not logged in — run: py -m app.scraper.login")

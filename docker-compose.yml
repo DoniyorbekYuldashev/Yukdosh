@@ -1,39 +1,80 @@
-# Sarbon24 — full stack: Postgres + web admin (behind Caddy HTTPS) + driver bot + scraper.
-# Secrets come from .env (BOT_TOKEN, ADMIN_PASSWORD, DOMAIN, API keys, TELEGRAM_*).
-# Deploy:  docker compose up -d --build
+# Yukdosh — web admin + driver bot + scraper (+ Postgres) on one server.
+#
+# Database: two modes, chosen in .env —
+#   local (default): COMPOSE_PROFILES=localdb + POSTGRES_*  -> the db container below
+#   hosted (Supabase): no COMPOSE_PROFILES line, DATABASE_URL=<session pooler URI>
+#
+#   First start:      docker compose up -d --build
+#   UI/bot change:    docker compose up -d --build bot web      (scraper keeps running)
+#   Parser change:    docker compose up -d --build scheduler
+#   Logs:             docker compose logs -f scheduler
+#
+# The admin site is NOT open to the internet: it listens on 127.0.0.1:8000 only.
+# Open it from your PC through an SSH tunnel (see DEPLOY.md). No domain needed.
+# Got a domain later? Set DOMAIN in .env and:  docker compose --profile https up -d
+
+x-app: &app
+  build: .
+  image: yukdosh:latest
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-yukdosh}:${POSTGRES_PASSWORD:-yukdosh}@db:5432/${POSTGRES_DB:-yukdosh}}
+    TG_SESSION: /app/state/yukdosh_session
+    TZ: Asia/Tashkent
+  depends_on:
+    db:
+      condition: service_healthy
+      required: false          # hosted-DB mode has no db container
+  logging: &logging
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }   # logs can't fill the disk
+
 services:
   db:
     image: postgres:16
+    profiles: ["localdb"]
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-sarbon}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sarbon}
-      POSTGRES_DB: ${POSTGRES_DB:-sarbon}
+      POSTGRES_USER: ${POSTGRES_USER:-yukdosh}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yukdosh}
+      POSTGRES_DB: ${POSTGRES_DB:-yukdosh}
+      TZ: Asia/Tashkent
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sarbon}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yukdosh} -d ${POSTGRES_DB:-yukdosh}"]
       interval: 5s
       timeout: 5s
-      retries: 10
-    ports:
-      - "127.0.0.1:5432:5432"   # localhost only — NOT exposed to the internet
+      retries: 20
+    logging: *logging
+    # no ports: — the database is reachable only by the other containers
 
   web:
-    build: .
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sarbon}:${POSTGRES_PASSWORD:-sarbon}@db:5432/${POSTGRES_DB:-sarbon}
-    depends_on:
-      db:
-        condition: service_healthy
-    expose:
-      - "8000"                  # internal only; Caddy reverse-proxies to it
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    <<: *app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers
+    ports:
+      - "127.0.0.1:8000:8000"   # server-local only -> reach it via SSH tunnel
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
+  bot:
+    <<: *app
+    command: python -m app.bot.main
+
+  scheduler:
+    <<: *app
+    command: python -m app.scheduler
+    volumes:
+      - tgstate:/app/state      # Telegram userbot session survives rebuilds/restarts
+
+  # Optional HTTPS front door — only starts with:  docker compose --profile https up -d
   caddy:
     image: caddy:2
+    profiles: ["https"]
     restart: unless-stopped
     ports:
       - "80:80"
@@ -41,38 +82,15 @@ services:
     environment:
       DOMAIN: ${DOMAIN:-localhost}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - web
-
-  bot:
-    build: .
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sarbon}:${POSTGRES_PASSWORD:-sarbon}@db:5432/${POSTGRES_DB:-sarbon}
-    depends_on:
-      db:
-        condition: service_healthy
-    command: python -m app.bot.main
-
-  scheduler:
-    build: .
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sarbon}:${POSTGRES_PASSWORD:-sarbon}@db:5432/${POSTGRES_DB:-sarbon}
-    depends_on:
-      db:
-        condition: service_healthy
-    # mount the Telegram session created by `py -m app.scraper.login` so the userbot stays logged in
-    volumes:
-      - ./sarbon_session.session:/app/sarbon_session.session
-    command: python -m app.scheduler
+    logging: *logging
 
 volumes:
-  pgdata:
+  pgdata:          # local database — `docker compose down -v` DELETES it
+  tgstate:
   caddy_data:
   caddy_config:

@@ -1,10 +1,17 @@
+# keep secrets, local DBs, sessions and bulky files OUT of the image
+.env
+.git/
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 *.db
 *.db-journal
 *.session
 *.session-journal
-.env
-.git/
+state/
+backups/
 data/real_samples.jsonl
+*.docx
+*.pdf
+assets/_preview/

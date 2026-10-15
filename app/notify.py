@@ -4,6 +4,7 @@ optional truck type fit."""
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
+from sqlalchemy.orm import defer
 
 from .db import SessionLocal
 from .models import Load, Subscription, Setting
@@ -32,7 +33,7 @@ def _matches(sub, load) -> bool:
 
 async def _active_hours(s) -> int:
     row = (await s.execute(select(Setting).where(Setting.key == "load_active_hours"))).scalar_one_or_none()
-    return int(row.value) if row and str(row.value).isdigit() else 6
+    return int(row.value) if row and str(row.value).isdigit() else 12
 
 
 async def notify_new_loads(bot) -> int:
@@ -41,7 +42,7 @@ async def notify_new_loads(bot) -> int:
     async with SessionLocal() as s:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=await _active_hours(s))
         new_loads = (await s.execute(
-            select(Load).where(
+            select(Load).options(defer(Load.raw_text)).where(
                 Load.notified == False, Load.is_load == True,          # noqa: E712
                 Load.listing_type != "goods", Load.posted_at >= cutoff)
             .order_by(Load.posted_at)

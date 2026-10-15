@@ -57,8 +57,6 @@ def _tail(l, lang):
         parts.append(f"🕒 {_when(l.posted_at, lang)}")
     if l.source_group == "bot":
         parts.append(t(lang, "via_bot"))
-    elif l.source_group:
-        parts.append(t(lang, "source") + ": " + l.source_group.replace("https://t.me/", "@"))
     return ("<i>" + " · ".join(parts) + "</i>") if parts else ""
 
 

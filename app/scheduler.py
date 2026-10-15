@@ -43,7 +43,7 @@ async def main():
     if BOT_TOKEN:
         notif_bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
         print("[scheduler] notifications enabled (matching loads -> drivers' saved routes)")
-    print("Sarbon24 scheduler running. Enable it in Settings (scheduler on/off + interval).")
+    print("Yukdosh scheduler running. Enable it in Settings (scheduler on/off + interval).")
     while True:
         enabled = (await _get("scheduler_enabled", "false")).strip().lower() in ("1", "true", "yes", "on")
         interval = int((await _get("scheduler_interval_minutes", "10")) or 10)

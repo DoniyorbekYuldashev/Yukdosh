@@ -92,7 +92,7 @@ class Load(Base):
     posted_by_tg: Mapped[str] = mapped_column(String(64), default="")  # Telegram user id if posted via bot
     poster_username: Mapped[str] = mapped_column(String(64), default="")  # @username of the group poster (scraped)
     raw_text: Mapped[str] = mapped_column(Text, default="")
-    posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     raw_message_id: Mapped[int | None] = mapped_column(ForeignKey("raw_messages.id"), nullable=True)

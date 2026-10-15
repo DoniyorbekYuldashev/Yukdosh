@@ -1,4 +1,4 @@
-"""Sarbon24 — FastAPI app: dynamic admin UI (groups + scrape window + parser) and
+"""Yukdosh — FastAPI app: dynamic admin UI (groups + scrape window + parser) and
 a dashboard of parsed loads. Protected by HTTP Basic auth in production."""
 from pathlib import Path
 import asyncio
@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 
 from .db import init_db, SessionLocal
 from .models import Group, Setting, Load, RawMessage
@@ -19,7 +19,7 @@ from . import config
 BASE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE / "web" / "templates"))
 
-app = FastAPI(title="Sarbon24")
+app = FastAPI(title="Yukdosh")
 
 _last_run: dict = {}
 _running: bool = False
@@ -45,7 +45,7 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
             except Exception:
                 pass
         return Response("Unauthorized", status_code=401,
-                        headers={"WWW-Authenticate": 'Basic realm="Sarbon24 Admin"'})
+                        headers={"WWW-Authenticate": 'Basic realm="Yukdosh Admin"'})
 
 
 app.add_middleware(BasicAuthMiddleware)
@@ -75,9 +75,9 @@ async def _settings_dict(s) -> dict:
 async def dashboard(request: Request):
     async with SessionLocal() as s:
         loads = (await s.execute(select(Load).order_by(desc(Load.posted_at)).limit(200))).scalars().all()
-        raw_count = (await s.execute(select(RawMessage))).scalars().all()
+        raw_count = (await s.execute(select(func.count()).select_from(RawMessage))).scalar_one()
     return templates.TemplateResponse(request, "dashboard.html", {
-        "loads": loads, "raw_count": len(raw_count),
+        "loads": loads, "raw_count": raw_count,
         "last_run": _last_run, "running": _running, "active": "dashboard",
     })
 
@@ -101,7 +101,8 @@ async def save_settings(
     openai_api_key: str = Form(""),
     scheduler_enabled: str = Form(""),          # checkbox -> "on" when checked
     scheduler_interval_minutes: int = Form(10),
-    load_active_hours: int = Form(6),
+    load_active_hours: int = Form(12),
+    load_retention_days: int = Form(5),
 ):
     updates = {
         "scrape_max_messages": str(scrape_max_messages),
@@ -112,6 +113,7 @@ async def save_settings(
         "scheduler_enabled": "true" if scheduler_enabled else "false",
         "scheduler_interval_minutes": str(scheduler_interval_minutes),
         "load_active_hours": str(load_active_hours),
+        "load_retention_days": str(max(0, load_retention_days)),
     }
     async with SessionLocal() as s:
         for k, v in updates.items():
@@ -209,7 +211,7 @@ async def api_loads():
 
 
 _USERS_HTML = """<!doctype html><html><head><meta charset="utf-8">
-<title>Foydalanuvchilar - Sarbon24</title>
+<title>Foydalanuvchilar - Yukdosh</title>
 <style>
 body{font-family:system-ui,'Segoe UI',Arial,sans-serif;margin:24px;color:#132539;background:#f8fafc}
 h2{margin:0 0 4px;font-weight:600}

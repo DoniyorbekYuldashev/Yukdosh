@@ -13,9 +13,12 @@ _IS_SQLITE = DATABASE_URL.startswith("sqlite")
 # SQLite allows one writer at a time; web+bot+scheduler all write. WAL mode lets readers and a
 # writer work concurrently, and busy_timeout makes writers WAIT instead of failing with
 # "database is locked". Postgres needs none of this.
+# Postgres: 3 processes share a hosted pooler with few slots, and it drops idle connections —
+# keep pools small and test each connection before use.
 engine = create_async_engine(
     DATABASE_URL, echo=False, future=True,
-    connect_args={"timeout": 30} if _IS_SQLITE else {},
+    **({"connect_args": {"timeout": 30}} if _IS_SQLITE else
+       {"pool_size": 3, "max_overflow": 2, "pool_pre_ping": True, "pool_recycle": 1800}),
 )
 
 if _IS_SQLITE:
@@ -48,6 +51,7 @@ async def init_db() -> None:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 await conn.run_sync(_ensure_columns)
+                await conn.run_sync(_ensure_indexes)
             await _seed_defaults()
             return
         except Exception as exc:  # DB not ready yet / transient race
@@ -83,6 +87,16 @@ def _ensure_columns(sync_conn) -> None:
             sync_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
 
 
+# create_all only builds indexes for NEW tables — existing DBs get them here.
+_WANTED_INDEXES = {"ix_loads_posted_at": "loads (posted_at)"}
+
+
+def _ensure_indexes(sync_conn) -> None:
+    from sqlalchemy import text
+    for name, target in _WANTED_INDEXES.items():
+        sync_conn.execute(text(f"CREATE INDEX IF NOT EXISTS {name} ON {target}"))
+
+
 async def _seed_defaults() -> None:
     """Seed default settings and one example group on first run."""
     from .models import Setting, Group
@@ -96,7 +110,8 @@ async def _seed_defaults() -> None:
         "openai_api_key": "",
         "scheduler_enabled": "false",       # auto-run the pipeline on a timer
         "scheduler_interval_minutes": "10", # how often to scrape
-        "load_active_hours": "6",           # loads shown to drivers for this many hours
+        "load_active_hours": "12",          # loads shown to drivers for this many hours
+        "load_retention_days": "5",         # loads + raw messages deleted after this (0 = keep)
     }
     async with SessionLocal() as s:
         existing = {
