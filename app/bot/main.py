@@ -6,6 +6,7 @@ Run:  python -m app.bot.main   (needs BOT_TOKEN in .env)
 """
 import asyncio
 import logging
+from html import escape
 
 from aiogram import Bot, Dispatcher, Router, F, BaseMiddleware
 from aiogram.client.default import DefaultBotProperties
@@ -23,7 +24,7 @@ from ..analytics import record_user
 from ..parser.mock import _find_price
 from ..parser.normalize import canonical_city
 from . import queries, subscriptions
-from .formatting import format_results, format_load
+from .formatting import format_results, format_load, original_kb
 from .i18n import t, variants, LANG_NAMES, get_lang, set_lang
 
 logging.basicConfig(level=logging.INFO)
@@ -137,7 +138,8 @@ async def on_help(m: Message):
 async def on_latest(m: Message):
     lang = await get_lang(m.from_user.id)
     loads = await queries.latest_loads(10)
-    await m.answer(format_results(loads, t(lang, "latest_title"), lang), reply_markup=menu_kb(lang))
+    await m.answer(format_results(loads, t(lang, "latest_title"), lang),
+                   reply_markup=original_kb(loads, lang) or menu_kb(lang))
 
 
 @router.message(F.text.in_(variants("btn_search")))
@@ -199,11 +201,21 @@ async def _send_page(target, uid, lang, origin, dest, truck, offset):
         await target.answer(text, reply_markup=menu_kb(lang))
         return
     _search_ctx[uid] = {"origin": origin, "dest": dest, "truck": truck, "offset": offset}
-    kb = None
-    if has_more:
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "next"), callback_data="srch_more")]])
-    await target.answer(format_results(loads, header, lang), reply_markup=kb)
+    more = [[InlineKeyboardButton(text=t(lang, "next"), callback_data="srch_more")]] if has_more else []
+    await target.answer(format_results(loads, header, lang),
+                        reply_markup=original_kb(loads, lang, extra_rows=more))
+
+
+@router.callback_query(F.data.startswith("raw:"))
+async def cb_original(cb: CallbackQuery):
+    lang = await get_lang(cb.from_user.id)
+    load_id = cb.data.split(":", 1)[1]
+    text = await queries.original_text(int(load_id)) if load_id.isdigit() else ""
+    if not text:
+        await cb.answer(t(lang, "not_found"), show_alert=True)  # deleted by retention
+        return
+    await cb.answer()
+    await cb.message.answer(t(lang, "raw_title") + "\n\n" + escape(text))
 
 
 @router.callback_query(F.data == "srch_more")
@@ -214,8 +226,12 @@ async def cb_more(cb: CallbackQuery):
     if not ctx:
         await cb.message.answer(t(lang, "search_expired"), reply_markup=menu_kb(lang))
         return
-    try:
-        await cb.message.edit_reply_markup(reply_markup=None)
+    try:  # keep the 📄 N buttons of the previous page, drop only its "next" row
+        kb = cb.message.reply_markup
+        rows = [r for r in (kb.inline_keyboard if kb else [])
+                if not any(b.callback_data == "srch_more" for b in r)]
+        await cb.message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
     except Exception:
         pass
     await _send_page(cb.message, cb.from_user.id, lang, ctx["origin"], ctx["dest"],

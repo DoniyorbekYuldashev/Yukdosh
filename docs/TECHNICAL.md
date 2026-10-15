@@ -280,16 +280,20 @@ row 3 `🆕 Yangi yuklar` | `ℹ️ Yordam`.
 
 **Card** (`formatting.format_load`):
 ```
-📦 <b>Toshkent → Moskva</b>
+<b>1.</b> 📦 <b>Toshkent → Moskva</b>   ("1." only in multi-card messages)
 🚚 Tent, Refrijerator ×2 · ⚖️ 20 t
 📦 paxta
 💰 45,000,000 so'm        (no price → "kelishiladi")
 📞 +998 90 123 45 67
 📝 comment
-🔗 E'lon manbasi          (link https://t.me/<group>/<msg_id>, only for public groups)
 🕒 Bugun 16:54            (Tashkent time; "via bot" marker for bot posts)
 ```
-Empty-truck cards use 🚛; goods listings have their own layout (`format_goods`).
+Empty-truck cards use 🚛; goods listings have their own layout (`format_goods`). All load
+fields are HTML-escaped. **No source link** (removed 2026-10-16): `formatting.original_kb()`
+adds `📄 1…N` buttons (or one `📄 Asl matn` for a single card) with `callback_data="raw:<id>"`;
+`cb_original` → `queries.original_text(id)` reads `raw_text` by primary key, strips links and
+@mentions (`_SOURCE_RE`), caps at 3,800 chars and sends it; a load already deleted by retention
+→ "not found" alert. "Keyingi" keeps the previous page's 📄 buttons.
 
 ---
 

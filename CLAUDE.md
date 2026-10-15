@@ -152,8 +152,10 @@ Sarbon24_*.docx/pdf      research docs + Uzbek pitch deck (not code; filenames n
    truck list, `bot/main.TRUCK_CODES`, `formatting._TRUCK_KEYS`, and `tk_<code>` in i18n for
    uz/kk/ru. Then add a test in `tests/test_trucks.py` / `run_tests.py`.
 9. **Don't show the poster's Telegram username on cards** (owner removed it on purpose;
-   the DB column `poster_username` stays). **Don't show a "manba: @group" line** — only the
-   `🔗 E'lon manbasi` link to the original message.
+   the DB column `poster_username` stays). **Never reveal the source group** — no "manba:
+   @group" line and, since 2026-10-16, **no `🔗 E'lon manbasi` link either** (owner: it teaches
+   users to bypass the bot). Instead a **📄 Asl matn** button (`raw:<load_id>`) shows the original
+   post text inside the bot, with links and @mentions stripped (`queries.original_text`).
 10. **No price → show "kelishiladi" / "келісіледі" / "договорная"** (key `price_none`).
 11. **Secrets live only in `.env`** (never commit; `.gitignore`/`.dockerignore` cover it).
     In Docker, `TG_SESSION` is set by `docker-compose.yml`; `DATABASE_URL` is built from
@@ -187,12 +189,14 @@ paged results (5 per page, "Keyingi ➡️"). Region names match all their distr
 ("Qashqadaryo" finds Kitob, Qarshi…), country matches everything in it, RU/UZ spellings
 match (Бухара = Buxoro). Only loads newer than `load_active_hours` (default **12h** — owner raised it from 6h on
 2026-10-05 because quiet routes had too few loads) are shown, newest first.
-Card shows: route, trucks ×count, tons, cargo, price, phone, comment, 🔗 source link, time
-(Tashkent UTC+5, "Bugun 16:54").
+Card shows: route, trucks ×count, tons, cargo, price, phone, comment, time (Tashkent UTC+5,
+"Bugun 16:54"). Multi-card messages (search pages, "Yangi yuklar") number the cards and carry
+`📄 1 … 📄 N` buttons + a hint line; a single card (notifications) gets one `📄 Asl matn` button.
+Bot-posted loads have no button (no original post).
 
 **Group posting** (admin → Settings → "Groups to post loads to", added 2026-10-16): per group —
 @username/chat id, every N minutes, loads per post (1–10), from/to filter (geo hierarchy, empty =
-any), truck type, language. Same card **without the 🔗 E'lon manbasi link** (owner's rule), header
+any), truck type, language. Same card (unnumbered, no buttons), header
 "🆕 latest_title", footer `group_post_footer` → @bot. Never reposts a load to the same group.
 Runs from the scheduler tick (so only while the scheduler is on). The bot must be a member allowed
 to post (admin in channels); send errors show under the group in the admin.

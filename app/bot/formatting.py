@@ -2,6 +2,8 @@
 from datetime import datetime, timezone, timedelta
 from html import escape
 
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 from .i18n import t, DEFAULT_LANG
 
 TASHKENT = timezone(timedelta(hours=5))  # Uzbekistan time (UTC+5)
@@ -44,12 +46,13 @@ def _truck_label(code, lang):
     return t(lang, key) if key else code
 
 
-def _post_link(l):
-    sg = (l.source_group or "")
-    mid = getattr(l, "source_msg_id", "") or ""
-    if sg.startswith("https://t.me/") and mid:
-        return sg.rstrip("/") + "/" + str(mid)
-    return ""
+def _num(num):
+    return f"<b>{num}.</b> " if num else ""
+
+
+def has_original(l) -> bool:
+    """Scraped loads keep the original post text; loads posted through the bot don't."""
+    return (l.source_group or "") != "bot"
 
 
 def _tail(l, lang):
@@ -61,20 +64,17 @@ def _tail(l, lang):
     return ("<i>" + " · ".join(parts) + "</i>") if parts else ""
 
 
-def _common_tail(l, lines, lang, source=True):
+def _common_tail(l, lines, lang):
     if getattr(l, "comment", ""):
         lines.append(f"📝 {escape(l.comment)}")
-    link = _post_link(l) if source else ""
-    if link:
-        lines.append(f'🔗 <a href="{link}">{t(lang, "source_link")}</a>')
     tail = _tail(l, lang)
     if tail:
         lines.append(tail)
     return "\n".join(lines)
 
 
-def format_goods(l, lang=DEFAULT_LANG, source=True):
-    lines = [f"🛒 <b>{escape(l.cargo_type or t(lang, 'goods'))}</b>"]
+def format_goods(l, lang=DEFAULT_LANG, num=None):
+    lines = [f"{_num(num)}🛒 <b>{escape(l.cargo_type or t(lang, 'goods'))}</b>"]
     meta = []
     if l.weight_tons:
         meta.append(f"⚖️ {float(l.weight_tons):g} t")
@@ -85,15 +85,15 @@ def format_goods(l, lang=DEFAULT_LANG, source=True):
     lines.append(f"💰 {escape(_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang))}")
     if l.contact_phone:
         lines.append(f"📞 {escape(l.contact_phone)}")
-    return _common_tail(l, lines, lang, source)
+    return _common_tail(l, lines, lang)
 
 
-def format_load(l, lang=DEFAULT_LANG, source=True):
-    """source=False drops the '🔗 E'lon manbasi' link (group posts)."""
+def format_load(l, lang=DEFAULT_LANG, num=None):
+    """num numbers the card in a multi-card message (matches the 📄 N buttons)."""
     if getattr(l, "listing_type", "load") == "goods":
-        return format_goods(l, lang, source)
+        return format_goods(l, lang, num)
     head = "📦" if l.is_load else "🚛"
-    lines = [f"{head} <b>{escape(l.origin_city or '?')} → {escape(l.destination_city or '?')}</b>"]
+    lines = [f"{_num(num)}{head} <b>{escape(l.origin_city or '?')} → {escape(l.destination_city or '?')}</b>"]
 
     row = []
     if l.truck_type:
@@ -114,11 +114,25 @@ def format_load(l, lang=DEFAULT_LANG, source=True):
     lines.append(f"💰 {escape(_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang))}")
     if l.contact_phone:
         lines.append(f"📞 {escape(l.contact_phone)}")
-    return _common_tail(l, lines, lang, source)
+    return _common_tail(l, lines, lang)
 
 
 def format_results(loads, header, lang=DEFAULT_LANG):
     if not loads:
         return f"<b>{header}</b>\n\n{t(lang, 'nothing_found')}"
-    blocks = [format_load(l, lang) for l in loads]
-    return f"<b>{header}</b> ({len(loads)})\n\n" + "\n\n➖➖➖\n\n".join(blocks)
+    numbered = len(loads) > 1
+    blocks = [format_load(l, lang, num=i if numbered else None) for i, l in enumerate(loads, 1)]
+    text = f"<b>{header}</b> ({len(loads)})\n\n" + "\n\n➖➖➖\n\n".join(blocks)
+    if numbered and any(has_original(l) for l in loads):
+        text += "\n\n<i>" + t(lang, "raw_hint") + "</i>"
+    return text
+
+
+def original_kb(loads, lang, extra_rows=()):
+    """'📄 N' buttons (one per scraped load) — or a single '📄 Asl matn' for one card."""
+    numbered = len(loads) > 1
+    buttons = [InlineKeyboardButton(text=f"📄 {i}" if numbered else t(lang, "raw_btn"),
+                                    callback_data=f"raw:{l.id}")
+               for i, l in enumerate(loads, 1) if has_original(l)]
+    rows = [buttons[i:i + 5] for i in range(0, len(buttons), 5)] + list(extra_rows)
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None

@@ -66,7 +66,7 @@ def build_post(loads, lang, bot_username=""):
     footer = t(lang, "group_post_footer", bot=bot_username) if bot_username else ""
     blocks, used = [], []
     for l in loads:
-        block = format_load(l, lang, source=False)
+        block = format_load(l, lang)
         size = len(header) + len(footer) + len(_SEP.join(blocks + [block])) + 4
         if blocks and size > _TG_LIMIT:
             break

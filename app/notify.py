@@ -8,7 +8,7 @@ from sqlalchemy.orm import defer
 
 from .db import SessionLocal
 from .models import Load, Subscription, Setting
-from .bot.formatting import format_load
+from .bot.formatting import format_load, original_kb
 from .bot.i18n import t, get_lang
 from .parser.geo import location_match
 
@@ -58,7 +58,8 @@ async def notify_new_loads(bot) -> int:
                     continue
                 try:
                     ulang = await get_lang(uid)
-                    await bot.send_message(int(uid), t(ulang, "notify_new") + format_load(load, ulang))
+                    await bot.send_message(int(uid), t(ulang, "notify_new") + format_load(load, ulang),
+                                           reply_markup=original_kb([load], ulang))
                     per_driver[uid] = per_driver.get(uid, 0) + 1
                     sent += 1
                 except Exception as exc:

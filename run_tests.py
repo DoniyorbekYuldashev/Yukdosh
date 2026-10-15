@@ -44,21 +44,33 @@ c = ParsedLoad(origin_city="Toshkent", destination_city="Samarqand", contact_pho
 check("same route+phone -> same fingerprint", h(a) == h(b), True)
 check("different route -> different fingerprint", h(a) != h(c), True)
 
-print("\n[Group posting: chat ids, cards without source link]")
+print("\n[Cards: no source link, numbered, 'Asl matn' buttons; group posting]")
 from types import SimpleNamespace
 from app.broadcast import normalize_chat, build_post
-from app.bot.formatting import format_load
+from app.bot.formatting import format_load, format_results, original_kb
+from app.bot.queries import _SOURCE_RE
 check("t.me link -> @username", normalize_chat("https://t.me/yuk_guruh"), "@yuk_guruh")
 check("bare name -> @username", normalize_chat("yuk_guruh"), "@yuk_guruh")
 check("numeric chat id kept", normalize_chat("-1001234567890"), "-1001234567890")
-card = SimpleNamespace(listing_type="load", is_load=True, origin_city="Toshkent", destination_city="Сарахс",
+card = SimpleNamespace(id=7, listing_type="load", is_load=True, origin_city="Toshkent", destination_city="Сарахс",
                        truck_type="tent", truck_count=5, weight_tons=18, cargo_type="запчасти & <детали>",
                        price_amount=None, price_currency="", contact_phone="+998 93 995 34 04", comment="",
                        source_group="https://t.me/Yuk_markazi_yuk_yukla", source_msg_id="16700127",
                        posted_at=None)
-check("bot card keeps source link", "E'lon manbasi" in format_load(card, "uz"), True)
-check("group card drops source link", "t.me/" in format_load(card, "uz", source=False), False)
+own = SimpleNamespace(**{**vars(card), "id": 8, "source_group": "bot"})
+check("card has no source link", "t.me/" in format_load(card, "uz") or "manbasi" in format_load(card, "uz"), False)
 check("special chars escaped for Telegram HTML", "&amp; &lt;детали&gt;" in format_load(card, "uz"), True)
+page = format_results([card, own], "🔍", "uz")
+check("multi-card message is numbered", "<b>1.</b>" in page and "<b>2.</b>" in page, True)
+check("multi-card message explains the N buttons", "asl matni" in page, True)
+kb = original_kb([card, own], "uz")
+check("one original-text button per scraped load (none for bot posts)",
+      [b.callback_data for r in kb.inline_keyboard for b in r], ["raw:7"])
+check("single card gets a labelled button",
+      original_kb([card], "uz").inline_keyboard[0][0].text.endswith("Asl matn"), True)
+check("original text loses links and @mentions",
+      _SOURCE_RE.sub("", "Tent kerak @Yuk_markazi https://t.me/x/1 tel 901234567 a@b.uz").split(),
+      ["Tent", "kerak", "tel", "901234567", "a@b.uz"])
 text, used = build_post([card] * 3, "uz", "@yukdoshbot")
 check("digest holds all loads that fit", len(used), 3)
 check("digest ends with bot pointer", text.rstrip().endswith("@yukdoshbot"), True)
