@@ -112,6 +112,7 @@ async def _seed_defaults() -> None:
         "scheduler_interval_minutes": "10", # how often to scrape
         "load_active_hours": "12",          # loads shown to drivers for this many hours
         "load_retention_days": "5",         # loads + raw messages deleted after this (0 = keep)
+        "card_source_mode": "original",     # bot cards: original | link | both | none
     }
     async with SessionLocal() as s:
         existing = {

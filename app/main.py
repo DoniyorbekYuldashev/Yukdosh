@@ -16,6 +16,7 @@ from .models import Group, Setting, Load, RawMessage, PostTarget, PostedLoad
 from .pipeline import run_pipeline
 from .broadcast import normalize_chat, MAX_LOADS_PER_POST
 from .bot.formatting import TASHKENT, _TRUCK_KEYS
+from .bot.queries import CARD_SOURCE_MODES
 from . import config
 
 TRUCK_CHOICES = [c for c in _TRUCK_KEYS if c != "other"]
@@ -113,8 +114,10 @@ async def save_settings(
     scheduler_interval_minutes: int = Form(10),
     load_active_hours: int = Form(12),
     load_retention_days: int = Form(5),
+    card_source_mode: str = Form("original"),
 ):
     updates = {
+        "card_source_mode": card_source_mode if card_source_mode in CARD_SOURCE_MODES else "original",
         "scrape_max_messages": str(scrape_max_messages),
         "scrape_hours_back": str(scrape_hours_back),
         "parser_provider": parser_provider,

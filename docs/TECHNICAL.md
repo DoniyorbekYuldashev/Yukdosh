@@ -154,6 +154,7 @@ HTML-escaped (`&`, `<` in posts used to break Telegram's HTML parsing).
 | `scheduler_interval_minutes` | 10 | Minutes between runs (owner used 1–2 min at times) |
 | `load_active_hours` | 12 | Loads older than this are hidden from search/latest/notifications (0 = never hide). Was 6 until 2026-10-05 |
 | `load_retention_days` | 5 | Loads + processed raw messages older than this are deleted each pipeline run (0 = keep all) |
+| `card_source_mode` | original | Bot cards (private chats only): `original` 📄 Asl matn button · `link` 🔗 E'lon manbasi · `both` · `none`. Read via `queries.card_options()` (30 s cache). Group posts never show either |
 
 ⚠ Saving the Settings form writes ALL these keys (including the provider dropdown and the
 key fields). If the provider is `local`, saving the form changes it — the dropdown has no

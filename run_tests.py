@@ -61,7 +61,13 @@ card = SimpleNamespace(id=7, listing_type="load", is_load=True, origin_city="Tos
                        source_group="https://t.me/Yuk_markazi_yuk_yukla", source_msg_id="16700127",
                        posted_at=None)
 own = SimpleNamespace(**{**vars(card), "id": 8, "source_group": "bot"})
-check("card has no source link", "t.me/" in format_load(card, "uz") or "manbasi" in format_load(card, "uz"), False)
+check("card has no source link by default", "t.me/" in format_load(card, "uz") or "manbasi" in format_load(card, "uz"), False)
+check("link mode adds the post link",
+      'href="https://t.me/Yuk_markazi_yuk_yukla/16700127"' in format_load(card, "uz", link=True), True)
+check("bot-posted load never gets a link", "href" in format_load(own, "uz", link=True), False)
+check("no-buttons mode: cards not numbered, no hint",
+      "<b>1.</b>" in format_results([card, own], "x", "uz", buttons=False)
+      or "asl matni" in format_results([card, own], "x", "uz", buttons=False), False)
 check("special chars escaped for Telegram HTML", "&amp; &lt;детали&gt;" in format_load(card, "uz"), True)
 page = format_results([card, own], "🔍", "uz")
 check("multi-card message is numbered", "<b>1.</b>" in page and "<b>2.</b>" in page, True)

@@ -9,6 +9,7 @@ from sqlalchemy.orm import defer
 from .db import SessionLocal
 from .models import Load, Subscription, Setting
 from .bot.formatting import format_load, original_kb
+from .bot.queries import card_options
 from .bot.i18n import t, get_lang
 from .parser.geo import location_match
 
@@ -51,6 +52,7 @@ async def notify_new_loads(bot) -> int:
             select(Subscription).where(Subscription.active == True))).scalars().all()  # noqa: E712
 
         per_driver = {}
+        link, buttons = await card_options()
         for load in new_loads:
             matched = {sub.tg_user_id for sub in subs if _matches(sub, load)}
             for uid in matched:
@@ -58,8 +60,8 @@ async def notify_new_loads(bot) -> int:
                     continue
                 try:
                     ulang = await get_lang(uid)
-                    await bot.send_message(int(uid), t(ulang, "notify_new") + format_load(load, ulang),
-                                           reply_markup=original_kb([load], ulang))
+                    await bot.send_message(int(uid), t(ulang, "notify_new") + format_load(load, ulang, link=link),
+                                           reply_markup=original_kb([load], ulang) if buttons else None)
                     per_driver[uid] = per_driver.get(uid, 0) + 1
                     sent += 1
                 except Exception as exc:

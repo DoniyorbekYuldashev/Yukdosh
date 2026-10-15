@@ -153,9 +153,10 @@ Sarbon24_*.docx/pdf      research docs + Uzbek pitch deck (not code; filenames n
    truck list, `bot/main.TRUCK_CODES`, `formatting._TRUCK_KEYS`, and `tk_<code>` in i18n for
    uz/kk/ru. Then add a test in `tests/test_trucks.py` / `run_tests.py`.
 9. **Don't show the poster's Telegram username on cards** (owner removed it on purpose;
-   the DB column `poster_username` stays). **Never reveal the source group** — no "manba:
-   @group" line and, since 2026-10-16, **no `🔗 E'lon manbasi` link either** (owner: it teaches
-   users to bypass the bot). Instead a **📄 Asl matn** button (`raw:<load_id>`) shows the original
+   the DB column `poster_username` stays). No "manba: @group" line. What bot cards show about
+   the source is the **owner's admin setting `card_source_mode`** (Settings → Bot cards):
+   `original` (default — 📄 Asl matn button) | `link` (🔗 E'lon manbasi) | `both` | `none`.
+   **Group posts never show either.** The **📄 Asl matn** button (`raw:<load_id>`) shows the original
    post text inside the bot, cleaned by `app/bot/clean.py`: links, @mentions, #hashtags and
    whole ad lines (other bots/channels/groups, "Admin:", "kirish:", "orqali yuborildi"…) are
    removed; card comments lose links/@mentions/#hashtags too. Calibrated on 5,675 real posts —

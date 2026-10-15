@@ -51,6 +51,14 @@ def _num(num):
     return f"<b>{num}.</b> " if num else ""
 
 
+def _post_link(l):
+    sg = l.source_group or ""
+    mid = getattr(l, "source_msg_id", "") or ""
+    if sg.startswith("https://t.me/") and mid:
+        return sg.rstrip("/") + "/" + str(mid)
+    return ""
+
+
 def has_original(l) -> bool:
     """Scraped loads keep the original post text; loads posted through the bot don't."""
     return (l.source_group or "") != "bot"
@@ -65,17 +73,20 @@ def _tail(l, lang):
     return ("<i>" + " · ".join(parts) + "</i>") if parts else ""
 
 
-def _common_tail(l, lines, lang):
+def _common_tail(l, lines, lang, link=False):
     comment = strip_source(getattr(l, "comment", "")).strip(" ,;")
     if comment:
         lines.append(f"📝 {escape(comment)}")
+    url = _post_link(l) if link else ""
+    if url:
+        lines.append(f'🔗 <a href="{escape(url)}">{t(lang, "source_link")}</a>')
     tail = _tail(l, lang)
     if tail:
         lines.append(tail)
     return "\n".join(lines)
 
 
-def format_goods(l, lang=DEFAULT_LANG, num=None):
+def format_goods(l, lang=DEFAULT_LANG, num=None, link=False):
     lines = [f"{_num(num)}🛒 <b>{escape(l.cargo_type or t(lang, 'goods'))}</b>"]
     meta = []
     if l.weight_tons:
@@ -87,13 +98,14 @@ def format_goods(l, lang=DEFAULT_LANG, num=None):
     lines.append(f"💰 {escape(_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang))}")
     if l.contact_phone:
         lines.append(f"📞 {escape(l.contact_phone)}")
-    return _common_tail(l, lines, lang)
+    return _common_tail(l, lines, lang, link)
 
 
-def format_load(l, lang=DEFAULT_LANG, num=None):
-    """num numbers the card in a multi-card message (matches the 📄 N buttons)."""
+def format_load(l, lang=DEFAULT_LANG, num=None, link=False):
+    """num numbers the card in a multi-card message (matches the 📄 N buttons);
+    link=True adds the '🔗 E'lon manbasi' link (admin setting card_source_mode)."""
     if getattr(l, "listing_type", "load") == "goods":
-        return format_goods(l, lang, num)
+        return format_goods(l, lang, num, link)
     head = "📦" if l.is_load else "🚛"
     lines = [f"{_num(num)}{head} <b>{escape(l.origin_city or '?')} → {escape(l.destination_city or '?')}</b>"]
 
@@ -116,14 +128,15 @@ def format_load(l, lang=DEFAULT_LANG, num=None):
     lines.append(f"💰 {escape(_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang))}")
     if l.contact_phone:
         lines.append(f"📞 {escape(l.contact_phone)}")
-    return _common_tail(l, lines, lang)
+    return _common_tail(l, lines, lang, link)
 
 
-def format_results(loads, header, lang=DEFAULT_LANG):
+def format_results(loads, header, lang=DEFAULT_LANG, link=False, buttons=True):
     if not loads:
         return f"<b>{header}</b>\n\n{t(lang, 'nothing_found')}"
-    numbered = len(loads) > 1
-    blocks = [format_load(l, lang, num=i if numbered else None) for i, l in enumerate(loads, 1)]
+    numbered = buttons and len(loads) > 1
+    blocks = [format_load(l, lang, num=i if numbered else None, link=link)
+              for i, l in enumerate(loads, 1)]
     text = f"<b>{header}</b> ({len(loads)})\n\n" + "\n\n➖➖➖\n\n".join(blocks)
     if numbered and any(has_original(l) for l in loads):
         text += "\n\n<i>" + t(lang, "raw_hint") + "</i>"

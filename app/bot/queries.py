@@ -3,6 +3,7 @@
 Search matches the driver's typed place through the geo hierarchy (country > region > district)
 and an optional truck-type filter, and only returns loads within the freshness window
 (load_active_hours) so drivers see current loads."""
+import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, desc, or_, func
@@ -61,6 +62,28 @@ async def search_loads(origin: str = "", destination: str = "", truck_type: str 
     if (truck_type or "").strip():
         rows = [l for l in rows if _truck_ok(l.truck_type, truck_type)]
     return rows[offset:offset + limit]
+
+
+# What bot cards show about the source (admin → Settings → Bot cards). Group posts: never.
+CARD_SOURCE_MODES = ("original", "link", "both", "none")
+_mode_cache = {"value": "original", "at": -1e9}
+
+
+async def card_source_mode() -> str:
+    """'original' (📄 Asl matn button) | 'link' (🔗 E'lon manbasi) | 'both' | 'none'.
+    Re-read every 30 s so an admin change applies without restarting the bot."""
+    if time.monotonic() - _mode_cache["at"] > 30:
+        async with SessionLocal() as s:
+            row = (await s.execute(select(Setting).where(Setting.key == "card_source_mode"))).scalar_one_or_none()
+        value = row.value if row and row.value in CARD_SOURCE_MODES else "original"
+        _mode_cache.update(value=value, at=time.monotonic())
+    return _mode_cache["value"]
+
+
+async def card_options() -> tuple[bool, bool]:
+    """(show the source link, show 📄 Asl matn buttons) for bot cards."""
+    mode = await card_source_mode()
+    return mode in ("link", "both"), mode in ("original", "both")
 
 
 async def original_text(load_id: int) -> str:

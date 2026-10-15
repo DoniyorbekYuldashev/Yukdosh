@@ -138,8 +138,9 @@ async def on_help(m: Message):
 async def on_latest(m: Message):
     lang = await get_lang(m.from_user.id)
     loads = await queries.latest_loads(10)
-    await m.answer(format_results(loads, t(lang, "latest_title"), lang),
-                   reply_markup=original_kb(loads, lang) or menu_kb(lang))
+    link, buttons = await queries.card_options()
+    await m.answer(format_results(loads, t(lang, "latest_title"), lang, link=link, buttons=buttons),
+                   reply_markup=(original_kb(loads, lang) if buttons else None) or menu_kb(lang))
 
 
 @router.message(F.text.in_(variants("btn_search")))
@@ -202,8 +203,11 @@ async def _send_page(target, uid, lang, origin, dest, truck, offset):
         return
     _search_ctx[uid] = {"origin": origin, "dest": dest, "truck": truck, "offset": offset}
     more = [[InlineKeyboardButton(text=t(lang, "next"), callback_data="srch_more")]] if has_more else []
-    await target.answer(format_results(loads, header, lang),
-                        reply_markup=original_kb(loads, lang, extra_rows=more))
+    link, buttons = await queries.card_options()
+    kb = (original_kb(loads, lang, extra_rows=more) if buttons
+          else InlineKeyboardMarkup(inline_keyboard=more) if more else None)
+    await target.answer(format_results(loads, header, lang, link=link, buttons=buttons),
+                        reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("raw:"))

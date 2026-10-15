@@ -158,6 +158,23 @@
   </div>
 
   <div class="card">
+    <h1 style="font-size:18px">Bot cards</h1>
+    <p class="sub">What load cards in the bot's private chats show about the original post
+       (search, "Yangi yuklar", route notifications). Group posts never show either.
+       Applies within ~30 seconds, no restart needed.</p>
+    <div class="row">
+      <div class="field" style="max-width:520px"><label>Source on cards</label>
+        {% set mode = cfg.card_source_mode or 'original' %}
+        <select name="card_source_mode">
+          <option value="original" {{ 'selected' if mode=='original' else '' }}>📄 Asl matn button — original text inside the bot, group hidden</option>
+          <option value="link" {{ 'selected' if mode=='link' else '' }}>🔗 E'lon manbasi link — opens the post in the group</option>
+          <option value="both" {{ 'selected' if mode=='both' else '' }}>Both</option>
+          <option value="none" {{ 'selected' if mode=='none' else '' }}>Nothing</option>
+        </select></div>
+    </div>
+  </div>
+
+  <div class="card">
     <h1 style="font-size:18px">Parser model</h1>
     <p class="sub">Swap providers any time. <b>mock</b> runs offline with no key. Add a key to use a real model.</p>
     <div class="row">
