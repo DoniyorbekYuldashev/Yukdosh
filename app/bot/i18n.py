@@ -1,4 +1,4 @@
-"""Translations for the driver bot: Uzbek (uz), Kazakh (kk), Russian (ru).
+"""Translations for the driver bot: Uzbek (uz), Kazakh (kk), Russian (ru), English (en).
 
 Every user-facing string lives here. Use t(lang, key, **fmt) everywhere — never hardcode
 text in handlers, or one language ends up leaking into another.
@@ -8,7 +8,7 @@ from .. models import BotUser
 
 DEFAULT_LANG = "uz"
 
-LANG_NAMES = {"uz": "🇺🇿 O'zbekcha", "kk": "🇰🇿 Қазақша", "ru": "🇷🇺 Русский"}
+LANG_NAMES = {"uz": "🇺🇿 O'zbekcha", "kk": "🇰🇿 Қазақша", "ru": "🇷🇺 Русский", "en": "🇬🇧 English"}
 
 TEXTS: dict[str, dict[str, str]] = {
     "uz": {
@@ -193,6 +193,67 @@ TEXTS: dict[str, dict[str, str]] = {
         "tk_tent": "Тент", "tk_ref": "Рефрижератор", "tk_isotherm": "Изотерм",
         "tk_flatbed": "Бортовой", "tk_container": "Контейнер", "tk_dump": "Самосвал",
         "tk_isuzu": "Isuzu", "tk_paravoz": "Автопоезд", "tk_labo": "Labo", "tk_other": "Другое",
+    },
+    "en": {
+        "btn_post": "➕ Post a load",
+        "btn_search": "🔍 Find loads",
+        "btn_latest": "🆕 New loads",
+        "btn_routes": "🔔 My routes",
+        "btn_help": "ℹ️ Help",
+        "welcome": "Hello! <b>Yukdosh</b> connects loads and drivers.\n\nChoose an option below:",
+        "help": ("<b>Yukdosh help</b>\n\n"
+                 "➕ Post a load — publish your own load\n"
+                 "🔍 Find loads — search by route and truck type\n"
+                 "🆕 New loads — the latest loads\n"
+                 "🔔 My routes — save a route and get notified about new loads\n"
+                 "🌐 /lang — change language\n\n"
+                 "Cancel: /cancel"),
+        "choose_lang": "Choose your language:",
+        "lang_set": "✅ Language changed.",
+        "cancelled": "Cancelled.",
+        "ask_origin": "From where? (e.g. Tashkent)",
+        "ask_dest": "To where? ('-' if it doesn't matter)",
+        "ask_truck": "🚚 Truck type? (optional — skip to see all)",
+        "truck_any": "🔀 Any (all)",
+        "search_expired": "This search has expired. Please search again 🔍",
+        "no_more": "No more loads.",
+        "next": "Next ➡️",
+        "post_intro": "📦 New load post.\n\n",
+        "choose_button": "Please choose one of the buttons.",
+        "posted_ok": "✅ Your load has been posted:\n\n",
+        "menu_hint": "Choose from the menu 👇",
+        "routes_none": "You have no saved routes.\n\nSave a route — I'll notify you as soon as a new load appears on it.",
+        "routes_add": "➕ Add a route",
+        "routes_list": "🔔 <b>Your saved routes:</b>",
+        "routes_del": "🗑 Delete",
+        "routes_more": "Add another one?",
+        "deleted": "Deleted",
+        "not_found": "Not found",
+        "deleted_mark": "🗑 Deleted",
+        "route_saved": "✅ Saved: <b>{route}</b>\nI'll notify you right away when a new load appears on this route.",
+        "any": "any",
+        "latest_title": "🆕 Latest loads",
+        "group_post_footer": "🔍 More loads and search by your route: {bot}",
+        "nothing_found": "Nothing found. Please try again later.",
+        "p_origin": "📍 From where? (city)",
+        "p_dest": "📍 To where? (city)",
+        "p_cargo": "📦 What cargo? (e.g. cotton, fruit)",
+        "p_weight": "⚖️ How many tons? ('-' if unknown)",
+        "p_price": "💰 Price? (e.g. 45 mln so'm, or '-')",
+        "p_phone": "📞 Your phone number? ('-' → contact via Telegram)",
+        "notify_new": "🔔 <b>New load on your route!</b>\n\n",
+        "price_none": "negotiable",
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "source_link": "Original post",
+        "raw_btn": "📄 Original text",
+        "raw_title": "📄 <b>Original text of the post</b>",
+        "raw_hint": "📄 N — original text of the post",
+        "via_bot": "via Yukdosh",
+        "goods": "Goods",
+        "tk_tent": "Tent", "tk_ref": "Reefer", "tk_isotherm": "Isotherm",
+        "tk_flatbed": "Flatbed", "tk_container": "Container", "tk_dump": "Dump truck",
+        "tk_isuzu": "Isuzu", "tk_paravoz": "Road train", "tk_labo": "Labo", "tk_other": "Other",
     },
 }
 

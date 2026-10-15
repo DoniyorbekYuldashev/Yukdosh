@@ -99,7 +99,7 @@ app/analytics.py         record_user() on every bot update; stats for /users pag
 app/main.py              FastAPI admin: /, /settings, /groups/*, /run, /api/loads, /users, /health
 app/web/templates/       base.html, dashboard.html, settings.html
 app/bot/main.py          aiogram bot: menu, search, latest, post a load, saved routes, /lang
-app/bot/i18n.py          ALL user-facing strings in uz / kk / ru; t(), variants(), get/set_lang
+app/bot/i18n.py          ALL user-facing strings in uz / kk / ru / en; t(), variants(), get/set_lang
 app/bot/formatting.py    load card rendering (HTML), 📄 Asl matn buttons (original_kb)
 app/bot/clean.py         strip source hints + ad lines from original text / comments
 app/bot/queries.py       search_loads (geo + truck filter + freshness), latest, insert_listing
@@ -144,14 +144,14 @@ Sarbon24_*.docx/pdf      research docs + Uzbek pitch deck (not code; filenames n
 5. **Local parser does NOT batch** (batching made small models merge multi-load posts).
    Paid APIs DO batch (`BATCH_SIZE = 10`). Keep the circuit breaker in `run_pipeline`
    (stops the run when a whole wave fails — prevents quota-draining retry storms).
-6. **Every user-facing string goes through `app/bot/i18n.py` in ALL THREE languages
-   (uz, kk, ru).** Button handlers match with `F.text.in_(variants("key"))`, never a
+6. **Every user-facing string goes through `app/bot/i18n.py` in ALL FOUR languages
+   (uz, kk, ru, en).** `run_tests.py` fails if any language misses a key. Button handlers match with `F.text.in_(variants("key"))`, never a
    hard-coded string, so switching language never breaks buttons.
 7. **New DB column →** add it to the model AND to `_WANTED_COLUMNS` in `db.py`
    (use `BOOLEAN DEFAULT 0`; it's converted to `FALSE` for Postgres automatically).
 8. **New truck type → update 5 places:** `normalize.TRUCK_ALIASES`, `prompt.SYSTEM_PROMPT`
    truck list, `bot/main.TRUCK_CODES`, `formatting._TRUCK_KEYS`, and `tk_<code>` in i18n for
-   uz/kk/ru. Then add a test in `tests/test_trucks.py` / `run_tests.py`.
+   uz/kk/ru/en. Then add a test in `tests/test_trucks.py` / `run_tests.py`.
 9. **Don't show the poster's Telegram username on cards** (owner removed it on purpose;
    the DB column `poster_username` stays). No "manba: @group" line. What bot cards show about
    the source is the **owner's admin setting `card_source_mode`** (Settings → Bot cards):
@@ -243,7 +243,7 @@ to post (admin in channels); send errors show under the group in the admin.
 
 ## 9. Current status & open items (update this section as things change)
 
-- ✅ Pipeline, bot (uz/kk/ru), saved routes + notifications, admin, analytics, phone masking,
+- ✅ Pipeline, bot (uz/kk/ru/en — English added 2026-10-16), saved routes + notifications, admin, analytics, phone masking,
   token savings (batching, compressed prompt), split processes, Docker/Oracle deploy files.
 - ✅ **Deployed 2026-10-15** on Azure VM `yukdosh-server` (B2als_v2, Central India, Ubuntu 24.04,
   Docker 29, Postgres 16 container). PC data (6 groups, 7 bot users, settings) restored; Telegram

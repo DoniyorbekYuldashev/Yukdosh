@@ -122,12 +122,12 @@ can start before Postgres is ready). New columns on existing tables are added by
 `truck_type` (currently always "" — the bot doesn't ask), `active`, `created_at`.
 
 **bot_users** — `tg_user_id` (PK), `username`, `first_name`, `language` (Telegram's),
-`lang` (chosen in bot: uz/kk/ru), `actions` (count), `first_seen`, `last_seen`.
+`lang` (chosen in bot: uz/kk/ru/en), `actions` (count), `first_seen`, `last_seen`.
 
 **post_targets** — groups/channels the bot posts into (`app/broadcast.py`): `chat` (unique,
 `@username` or numeric id; `normalize_chat()` turns t.me links into `@name`), `title`,
 `enabled`, `interval_minutes`, `loads_per_post` (1–10), `origin`/`destination` (geo-hierarchy
-filter, "" = any), `truck_type`, `lang` (uz/kk/ru), `last_posted_at`, `last_error`.
+filter, "" = any), `truck_type`, `lang` (uz/kk/ru/en), `last_posted_at`, `last_error`.
 
 **posted_loads** — `target_id`, `load_id`, `posted_at`: which load went to which target (never
 repost). Plain ids, **no FKs** (loads are deleted by retention); pruned with the same retention.

@@ -77,7 +77,7 @@ def menu_kb(lang) -> ReplyKeyboardMarkup:
 def lang_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=LANG_NAMES[code], callback_data=f"lang:{code}")]
-        for code in ("uz", "kk", "ru")
+        for code in LANG_NAMES
     ])
 
 

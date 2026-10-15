@@ -17,10 +17,11 @@ from .pipeline import run_pipeline
 from .broadcast import normalize_chat, MAX_LOADS_PER_POST
 from .bot.formatting import TASHKENT, _TRUCK_KEYS
 from .bot.queries import CARD_SOURCE_MODES
+from .bot.i18n import LANG_NAMES
 from . import config
 
 TRUCK_CHOICES = [c for c in _TRUCK_KEYS if c != "other"]
-POST_LANGS = ("uz", "kk", "ru")
+POST_LANGS = tuple(LANG_NAMES)
 
 BASE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE / "web" / "templates"))

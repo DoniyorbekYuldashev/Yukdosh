@@ -98,5 +98,13 @@ text, used = build_post([card] * 3, "uz", "@yukdoshbot")
 check("digest holds all loads that fit", len(used), 3)
 check("digest ends with bot pointer", text.rstrip().endswith("@yukdoshbot"), True)
 
+print("\n[Languages: every language has every text]")
+from app.bot.i18n import TEXTS, LANG_NAMES, variants
+for code in TEXTS:
+    check(f"'{code}' has all {len(TEXTS['uz'])} texts", sorted(set(TEXTS["uz"]) - set(TEXTS[code])), [])
+check("language picker lists every language", sorted(LANG_NAMES), sorted(TEXTS))
+check("menu buttons don't collide across languages",
+      len(variants("btn_search")) == len(TEXTS) and len(variants("btn_post")) == len(TEXTS), True)
+
 print(f"\n{'='*40}\nPASSED {_passed}  FAILED {_failed}\n")
 raise SystemExit(1 if _failed else 0)
