@@ -12,6 +12,7 @@ from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
+from .broadcast import post_to_groups
 from .config import BOT_TOKEN
 from .db import init_db, SessionLocal
 from .notify import notify_new_loads
@@ -62,6 +63,13 @@ async def main():
                 print(msg)
             except Exception as exc:
                 print(f"[scheduler] pipeline error: {exc}")
+            if notif_bot:
+                try:
+                    posts = await post_to_groups(notif_bot)
+                    if posts:
+                        print(f"[scheduler] {posts} group post(s) sent")
+                except Exception as exc:
+                    print(f"[scheduler] group posting error: {exc}")
             await asyncio.sleep(max(1, interval) * 60)
         else:
             await asyncio.sleep(15)  # idle: re-check the toggle every 15s

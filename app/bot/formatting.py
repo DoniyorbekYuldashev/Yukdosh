@@ -1,5 +1,6 @@
 """Render a structured load as a clean card for drivers, in the user's language."""
 from datetime import datetime, timezone, timedelta
+from html import escape
 
 from .i18n import t, DEFAULT_LANG
 
@@ -60,10 +61,10 @@ def _tail(l, lang):
     return ("<i>" + " · ".join(parts) + "</i>") if parts else ""
 
 
-def _common_tail(l, lines, lang):
+def _common_tail(l, lines, lang, source=True):
     if getattr(l, "comment", ""):
-        lines.append(f"📝 {l.comment}")
-    link = _post_link(l)
+        lines.append(f"📝 {escape(l.comment)}")
+    link = _post_link(l) if source else ""
     if link:
         lines.append(f'🔗 <a href="{link}">{t(lang, "source_link")}</a>')
     tail = _tail(l, lang)
@@ -72,26 +73,27 @@ def _common_tail(l, lines, lang):
     return "\n".join(lines)
 
 
-def format_goods(l, lang=DEFAULT_LANG):
-    lines = [f"🛒 <b>{l.cargo_type or t(lang, 'goods')}</b>"]
+def format_goods(l, lang=DEFAULT_LANG, source=True):
+    lines = [f"🛒 <b>{escape(l.cargo_type or t(lang, 'goods'))}</b>"]
     meta = []
     if l.weight_tons:
         meta.append(f"⚖️ {float(l.weight_tons):g} t")
     if l.origin_city:
-        meta.append(f"📍 {l.origin_city}")
+        meta.append(f"📍 {escape(l.origin_city)}")
     if meta:
         lines.append(" · ".join(meta))
-    lines.append(f"💰 {_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang)}")
+    lines.append(f"💰 {escape(_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang))}")
     if l.contact_phone:
-        lines.append(f"📞 {l.contact_phone}")
-    return _common_tail(l, lines, lang)
+        lines.append(f"📞 {escape(l.contact_phone)}")
+    return _common_tail(l, lines, lang, source)
 
 
-def format_load(l, lang=DEFAULT_LANG):
+def format_load(l, lang=DEFAULT_LANG, source=True):
+    """source=False drops the '🔗 E'lon manbasi' link (group posts)."""
     if getattr(l, "listing_type", "load") == "goods":
-        return format_goods(l, lang)
+        return format_goods(l, lang, source)
     head = "📦" if l.is_load else "🚛"
-    lines = [f"{head} <b>{l.origin_city or '?'} → {l.destination_city or '?'}</b>"]
+    lines = [f"{head} <b>{escape(l.origin_city or '?')} → {escape(l.destination_city or '?')}</b>"]
 
     row = []
     if l.truck_type:
@@ -99,7 +101,7 @@ def format_load(l, lang=DEFAULT_LANG):
         label = ", ".join(parts)
         if getattr(l, "truck_count", None):
             label += f" ×{l.truck_count}"
-        row.append(f"🚚 {label}")
+        row.append(f"🚚 {escape(label)}")
     elif getattr(l, "truck_count", None):
         row.append(f"🚚 ×{l.truck_count}")
     if l.weight_tons:
@@ -108,11 +110,11 @@ def format_load(l, lang=DEFAULT_LANG):
         lines.append(" · ".join(row))
 
     if l.cargo_type:
-        lines.append(f"📦 {l.cargo_type}")
-    lines.append(f"💰 {_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang)}")
+        lines.append(f"📦 {escape(l.cargo_type)}")
+    lines.append(f"💰 {escape(_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang))}")
     if l.contact_phone:
-        lines.append(f"📞 {l.contact_phone}")
-    return _common_tail(l, lines, lang)
+        lines.append(f"📞 {escape(l.contact_phone)}")
+    return _common_tail(l, lines, lang, source)
 
 
 def format_results(loads, header, lang=DEFAULT_LANG):

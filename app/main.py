@@ -9,12 +9,17 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc, func, delete
 
 from .db import init_db, SessionLocal
-from .models import Group, Setting, Load, RawMessage
+from .models import Group, Setting, Load, RawMessage, PostTarget, PostedLoad
 from .pipeline import run_pipeline
+from .broadcast import normalize_chat, MAX_LOADS_PER_POST
+from .bot.formatting import TASHKENT, _TRUCK_KEYS
 from . import config
+
+TRUCK_CHOICES = [c for c in _TRUCK_KEYS if c != "other"]
+POST_LANGS = ("uz", "kk", "ru")
 
 BASE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE / "web" / "templates"))
@@ -87,8 +92,13 @@ async def settings_page(request: Request):
     async with SessionLocal() as s:
         cfg = await _settings_dict(s)
         groups = (await s.execute(select(Group).order_by(Group.id))).scalars().all()
+        targets = (await s.execute(select(PostTarget).order_by(PostTarget.id))).scalars().all()
+    last_post = {tg.id: tg.last_posted_at.astimezone(TASHKENT).strftime("%d.%m %H:%M")
+                 for tg in targets if tg.last_posted_at}
     return templates.TemplateResponse(request, "settings.html", {
         "cfg": cfg, "groups": groups, "active": "settings",
+        "targets": targets, "last_post": last_post, "truck_choices": TRUCK_CHOICES,
+        "post_langs": POST_LANGS, "max_per_post": MAX_LOADS_PER_POST,
     })
 
 
@@ -174,6 +184,68 @@ async def delete_group(group_id: int):
         if g:
             await s.delete(g)
             await s.commit()
+    return RedirectResponse("/settings", status_code=303)
+
+
+def _target_fields(interval_minutes, loads_per_post, origin, destination, truck_type, lang) -> dict:
+    return {
+        "interval_minutes": max(1, interval_minutes),
+        "loads_per_post": min(MAX_LOADS_PER_POST, max(1, loads_per_post)),
+        "origin": origin.strip(), "destination": destination.strip(),
+        "truck_type": truck_type if truck_type in TRUCK_CHOICES else "",
+        "lang": lang if lang in POST_LANGS else "uz",
+    }
+
+
+@app.post("/targets/add")
+async def add_target(
+    chat: str = Form(...), title: str = Form(""), interval_minutes: int = Form(60),
+    loads_per_post: int = Form(5), origin: str = Form(""), destination: str = Form(""),
+    truck_type: str = Form(""), lang: str = Form("uz"),
+):
+    chat = normalize_chat(chat)
+    if chat:
+        async with SessionLocal() as s:
+            exists = (await s.execute(select(PostTarget).where(PostTarget.chat == chat))).scalar_one_or_none()
+            if not exists:
+                s.add(PostTarget(chat=chat, title=title.strip(), enabled=True, **_target_fields(
+                    interval_minutes, loads_per_post, origin, destination, truck_type, lang)))
+                await s.commit()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/targets/{target_id}/update")
+async def update_target(
+    target_id: int, interval_minutes: int = Form(60), loads_per_post: int = Form(5),
+    origin: str = Form(""), destination: str = Form(""), truck_type: str = Form(""),
+    lang: str = Form("uz"),
+):
+    async with SessionLocal() as s:
+        tg = (await s.execute(select(PostTarget).where(PostTarget.id == target_id))).scalar_one_or_none()
+        if tg:
+            for k, v in _target_fields(interval_minutes, loads_per_post, origin, destination,
+                                       truck_type, lang).items():
+                setattr(tg, k, v)
+            await s.commit()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/targets/{target_id}/toggle")
+async def toggle_target(target_id: int):
+    async with SessionLocal() as s:
+        tg = (await s.execute(select(PostTarget).where(PostTarget.id == target_id))).scalar_one_or_none()
+        if tg:
+            tg.enabled = not tg.enabled
+            await s.commit()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/targets/{target_id}/delete")
+async def delete_target(target_id: int):
+    async with SessionLocal() as s:
+        await s.execute(delete(PostedLoad).where(PostedLoad.target_id == target_id))
+        await s.execute(delete(PostTarget).where(PostTarget.id == target_id))
+        await s.commit()
     return RedirectResponse("/settings", status_code=303)
 
 

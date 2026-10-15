@@ -58,6 +58,74 @@
   </form>
 </div>
 
+{% macro post_fields(tg=None) %}
+  <div class="field"><label>From (empty = any)</label>
+    <input name="origin" value="{{ tg.origin if tg else '' }}" placeholder="any, e.g. Toshkent"></div>
+  <div class="field"><label>To (empty = any)</label>
+    <input name="destination" value="{{ tg.destination if tg else '' }}" placeholder="any, e.g. Rossiya"></div>
+  <div class="field" style="max-width:150px"><label>Truck</label>
+    <select name="truck_type">
+      <option value="">any</option>
+      {% for c in truck_choices %}<option value="{{ c }}" {{ 'selected' if tg and tg.truck_type==c else '' }}>{{ c }}</option>{% endfor %}
+    </select></div>
+  <div class="field" style="max-width:120px"><label>Every N min</label>
+    <input type="number" name="interval_minutes" value="{{ tg.interval_minutes if tg else 60 }}" min="1"></div>
+  <div class="field" style="max-width:120px"><label>Loads / post</label>
+    <input type="number" name="loads_per_post" value="{{ tg.loads_per_post if tg else 5 }}" min="1" max="{{ max_per_post }}"></div>
+  <div class="field" style="max-width:100px"><label>Language</label>
+    <select name="lang">
+      {% for l in post_langs %}<option value="{{ l }}" {{ 'selected' if (tg.lang if tg else 'uz')==l else '' }}>{{ l }}</option>{% endfor %}
+    </select></div>
+{% endmacro %}
+
+<!-- Groups the bot posts loads to -->
+<div class="card">
+  <div class="flush">
+    <h1 style="font-size:18px">Groups to post loads to</h1>
+    <span class="muted">{{ targets|selectattr('enabled')|list|length }} active / {{ targets|length }} total</span>
+  </div>
+  <p class="sub">The bot posts the newest matching loads (no source link) into these groups, never the
+     same load twice. First add the bot to the group and let it send messages (in a channel: make it
+     an admin). Use the public <code>@username</code> or numeric chat id — invite links don't work.
+     Runs while the scheduler is on.</p>
+
+  {% for tg in targets %}
+  <div style="border-top:1px solid var(--line); padding:14px 0">
+    <div class="flush">
+      <div><code>{{ tg.chat }}</code> <span class="muted">{{ tg.title }}</span>
+        {% if tg.enabled %}<span class="pill load">active</span>{% else %}<span class="tag">paused</span>{% endif %}</div>
+      <div style="white-space:nowrap">
+        <form method="post" action="/targets/{{ tg.id }}/toggle" style="display:inline">
+          <button class="secondary" type="submit">{{ 'Pause' if tg.enabled else 'Enable' }}</button></form>
+        <form method="post" action="/targets/{{ tg.id }}/delete" style="display:inline">
+          <button class="danger" type="submit">Delete</button></form>
+      </div>
+    </div>
+    <form method="post" action="/targets/{{ tg.id }}/update" class="row" style="margin-top:10px">
+      {{ post_fields(tg) }}
+      <div style="align-self:flex-end"><button class="secondary" type="submit">Save</button></div>
+    </form>
+    <div class="muted" style="font-size:13px; margin-top:8px">
+      Last post: {{ last_post.get(tg.id, 'never') }}
+      {% if tg.last_error %} · <span style="color:#f6a9c0">Error: {{ tg.last_error }}</span>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <form method="post" action="/targets/add" style="margin-top:16px; border-top:1px solid var(--line); padding-top:16px">
+    <div class="row">
+      <div class="field" style="flex:2"><label>Group / channel (@username, t.me link or chat id)</label>
+        <input name="chat" placeholder="@my_yuk_group" required></div>
+      <div class="field"><label>Title (optional)</label>
+        <input name="title" placeholder="My group"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      {{ post_fields() }}
+      <div style="align-self:flex-end"><button type="submit">Add group</button></div>
+    </div>
+  </form>
+</div>
+
 <!-- Global scrape window + parser -->
 <form method="post" action="/settings">
   <div class="card">

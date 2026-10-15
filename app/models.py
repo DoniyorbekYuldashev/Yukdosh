@@ -112,6 +112,36 @@ class Subscription(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class PostTarget(Base):
+    """A Telegram group/channel the bot posts digests of fresh loads into (admin → Settings)."""
+    __tablename__ = "post_targets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chat: Mapped[str] = mapped_column(String(255), unique=True)   # "@username" or numeric "-100…"
+    title: Mapped[str] = mapped_column(String(255), default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    loads_per_post: Mapped[int] = mapped_column(Integer, default=5)
+    origin: Mapped[str] = mapped_column(String(128), default="")       # "" = any
+    destination: Mapped[str] = mapped_column(String(128), default="")  # "" = any
+    truck_type: Mapped[str] = mapped_column(String(64), default="")    # "" = any
+    lang: Mapped[str] = mapped_column(String(8), default="uz")
+    last_posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class PostedLoad(Base):
+    """Which load went to which post target — so a load is never posted twice to one group.
+    Plain ids, no foreign keys: loads are deleted by retention and must not be blocked."""
+    __tablename__ = "posted_loads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    target_id: Mapped[int] = mapped_column(Integer, index=True)
+    load_id: Mapped[int] = mapped_column(Integer, index=True)
+    posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class BotUser(Base):
     """A person who has used the bot — for usage analytics (count, first/last seen)."""
     __tablename__ = "bot_users"

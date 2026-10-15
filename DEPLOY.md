@@ -25,7 +25,7 @@ git push
 - Region: **(Asia Pacific) Central India**; Availability: *No infrastructure redundancy required*
 - Image: **Ubuntu Server 24.04 LTS – x64 Gen2**
 - Size: **See all sizes** → search `B2als_v2` → **Standard_B2als_v2** (2 vCPU, 4 GiB)
-- Authentication: **SSH public key**, username `azureuser`, **Generate new key pair**, name `yukdosh-key`
+- Authentication: **SSH public key**, username `doniyorazure`, **Generate new key pair**, name `yukdosh-key`
 - Inbound ports: **Allow selected ports → SSH (22)** only
 
 **Disks:** OS disk **Premium SSD (LRS)**, **64 GiB**. **Management:** auto-shutdown **off**.
@@ -39,7 +39,7 @@ resource** → save as `C:\Users\doniy\.ssh\yukdosh-key.pem`. Open the VM, copy 
 Windows refuses a private key other users can read — restrict it once:
 ```powershell
 icacls C:\Users\doniy\.ssh\yukdosh-key.pem /inheritance:r /grant:r "$($env:USERNAME):R"
-ssh -i C:\Users\doniy\.ssh\yukdosh-key.pem azureuser@PUBLIC_IP
+ssh -i C:\Users\doniy\.ssh\yukdosh-key.pem doniyorazure@PUBLIC_IP
 ```
 
 ## 3. Get the code onto the server  [server]
@@ -72,7 +72,7 @@ the same Telegram session running at once fight each other (or get the session r
 **[PC]** dump the local database and upload it:
 ```powershell
 & "D:\Programmes\PostgreSQL\16\bin\pg_dump.exe" -U postgres -d yukdosh -Fc --no-owner --no-privileges -f yukdosh.dump
-scp -i C:\Users\doniy\.ssh\yukdosh-key.pem yukdosh.dump azureuser@PUBLIC_IP:~/yukdosh/
+scp -i C:\Users\doniy\.ssh\yukdosh-key.pem yukdosh.dump doniyorazure@PUBLIC_IP:~/yukdosh/
 ```
 **[server]** load it into the new database:
 ```bash
@@ -87,7 +87,7 @@ Old loads are deleted by the first pipeline run (5-day retention).
 ## 7. Telegram userbot session  [PC → server]
 Reuse your existing login (no code needed) — the PC copy must stay stopped from now on:
 ```powershell
-scp -i C:\Users\doniy\.ssh\yukdosh-key.pem yukdosh_session.session azureuser@PUBLIC_IP:~/yukdosh/
+scp -i C:\Users\doniy\.ssh\yukdosh-key.pem yukdosh_session.session doniyorazure@PUBLIC_IP:~/yukdosh/
 ```
 ```bash
 docker compose build
@@ -108,7 +108,7 @@ In the admin → Settings, make sure the **scheduler is ON**.
 
 ## 9. Open the admin  [PC]
 ```powershell
-ssh -i C:\Users\doniy\.ssh\yukdosh-key.pem -N -L 8000:127.0.0.1:8000 azureuser@PUBLIC_IP
+ssh -i C:\Users\doniy\.ssh\yukdosh-key.pem -N -L 8000:127.0.0.1:8000 doniyorazure@PUBLIC_IP
 ```
 Leave that window open and browse to **http://localhost:8000** (log in with ADMIN_USER/PASSWORD).
 
@@ -119,7 +119,7 @@ chmod +x deploy/*.sh
 bash deploy/backup.sh    # test once
 ```
 Copy a backup to your PC now and then:
-`scp -i C:\Users\doniy\.ssh\yukdosh-key.pem "azureuser@PUBLIC_IP:~/yukdosh/backups/*.dump" .`
+`scp -i C:\Users\doniy\.ssh\yukdosh-key.pem "doniyorazure@PUBLIC_IP:~/yukdosh/backups/*.dump" .`
 
 ---
 

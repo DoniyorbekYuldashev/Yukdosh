@@ -61,6 +61,11 @@ One **Azure VM `Standard_B2als_v2`** (2 vCPU / 4 GB, Central India, ~$18/mo afte
 expires on 2026-11-14) runs 4 Docker services: `db` (Postgres 16) + web, bot, scheduler.
 DB mode is chosen in `.env`: `COMPOSE_PROFILES=localdb` + `POSTGRES_*` (default) **or**
 `DATABASE_URL=<Supabase session pooler>` (for shrinking to the free 1 GB B2ats_v2 later).
+**Live server:** `ssh -i C:\Users\doniy\.ssh\yukdosh-key.pem doniyorazure@20.207.207.239`, code in
+`~/yukdosh`. Admin login is in `C:\Users\doniy\.ssh\yukdosh-admin.txt` (never in the repo).
+Backups: cron 04:00 daily → `~/yukdosh/backups/*.dump` (keeps 14).
+From PowerShell, write server paths literally (`/home/doniyorazure/...`) — `$HOME` inside a
+double-quoted ssh command expands to the *Windows* home.
 ```bash
 docker compose up -d --build                 # everything
 bash deploy/update.sh                        # git pull + rebuild bot & web only
@@ -68,7 +73,8 @@ bash deploy/update.sh all                    # also scraper/parser
 docker compose logs -f scheduler             # watch the engine
 ```
 Admin in prod is bound to 127.0.0.1 — open via SSH tunnel:
-`ssh -i KEY -N -L 8000:127.0.0.1:8000 ubuntu@IP` → http://localhost:8000
+`ssh -i C:\Users\doniy\.ssh\yukdosh-key.pem -N -L 8000:127.0.0.1:8000 doniyorazure@20.207.207.239`
+→ http://localhost:8000
 
 ### Useful one-off commands (`py -m ...` on Windows, `docker compose run --rm web python -m ...` in Docker)
 `app.set_provider openai` · `app.scraper.login` · `app.scraper.logout` · `app.dbview` ·
@@ -82,11 +88,13 @@ Admin in prod is bound to 127.0.0.1 — open via SSH tunnel:
 ```
 app/config.py            env config (.env loader). DATABASE_URL REQUIRED, TG_SESSION, keys
 app/db.py                engine, init_db(), _ensure_columns() auto-migration, default settings seed
-app/models.py            tables: settings, groups, raw_messages, loads, subscriptions, bot_users
+app/models.py            tables: settings, groups, raw_messages, loads, subscriptions, bot_users,
+                         post_targets, posted_loads
 app/schemas.py           ParsedLoad (pydantic) — the parser's output shape
 app/pipeline.py          scrape → prefilter → mask phones → parse (batched) → store → dedup → prune
 app/scheduler.py         timer loop: run_pipeline() then notify_new_loads(); persistent Telegram conn
 app/notify.py            push new loads to drivers whose saved routes match
+app/broadcast.py         post digests of fresh loads into Telegram groups (post_targets), no repeats
 app/analytics.py         record_user() on every bot update; stats for /users page
 app/main.py              FastAPI admin: /, /settings, /groups/*, /run, /api/loads, /users, /health
 app/web/templates/       base.html, dashboard.html, settings.html
@@ -182,6 +190,13 @@ match (Бухара = Buxoro). Only loads newer than `load_active_hours` (defaul
 Card shows: route, trucks ×count, tons, cargo, price, phone, comment, 🔗 source link, time
 (Tashkent UTC+5, "Bugun 16:54").
 
+**Group posting** (admin → Settings → "Groups to post loads to", added 2026-10-16): per group —
+@username/chat id, every N minutes, loads per post (1–10), from/to filter (geo hierarchy, empty =
+any), truck type, language. Same card **without the 🔗 E'lon manbasi link** (owner's rule), header
+"🆕 latest_title", footer `group_post_footer` → @bot. Never reposts a load to the same group.
+Runs from the scheduler tick (so only while the scheduler is on). The bot must be a member allowed
+to post (admin in channels); send errors show under the group in the admin.
+
 ---
 
 ## 7. Parser facts
@@ -220,24 +235,24 @@ Card shows: route, trucks ×count, tons, cargo, price, phone, comment, 🔗 sour
 
 - ✅ Pipeline, bot (uz/kk/ru), saved routes + notifications, admin, analytics, phone masking,
   token savings (batching, compressed prompt), split processes, Docker/Oracle deploy files.
-- ⏳ **Deploy: one Azure VM (B2als_v2, Central India) with Postgres in Docker** — owner's choice
-  2026-10-15 (Azure free account: $200 credit until 2026-11-14, then ~$20–28/mo which he plans
-  to pay). Code ready: local-or-hosted DB modes, small DB pools, `posted_at` index, 5-day load
-  retention, raw_text deferred. Owner creates the VM; then data + Telegram session are copied
-  from the PC (DEPLOY.md steps 6–7). Must upgrade the Azure account to pay-as-you-go before
-  2026-11-14. Rejected on the way: Oracle Ampere (no capacity in Mumbai; 2nd account blocked),
-  Google $300 trial ($30 refundable prepayment, 90 days), Azure for Students (school not
-  verifiable), Fly.io/Koyeb/Railway/HF Spaces (no free always-on worker + storage).
-- ⏳ After deploy: verify live that phones are masked + re-attached correctly, check daily
-  token usage vs the 2.5M free limit.
+- ✅ **Deployed 2026-10-15** on Azure VM `yukdosh-server` (B2als_v2, Central India, Ubuntu 24.04,
+  Docker 29, Postgres 16 container). PC data (6 groups, 7 bot users, settings) restored; Telegram
+  session copied (no re-login); queue cleared with `app.clearqueue`. First run: +222 loads from
+  244 msgs in 11 OpenAI calls; old August loads pruned; DB 15 MB. GitHub deploy key (read-only)
+  "yukdosh-server (Azure)". **The PC copy must stay stopped** (same bot token + session).
+  ⏳ **Upgrade the Azure account to pay-as-you-go before 2026-11-14** (credit expiry), then
+  ~$20–28/mo. ⏳ $5 budget alert. Rejected hosting options: see docs/PRODUCT.md #19–20.
+- ✅ Phones re-attached live: 187 of the first 222 loads carry a phone (the rest had none).
+  ⏳ Check daily OpenAI token usage vs the 2.5M free limit.
 - ✅ **Renamed to Yukdosh** (owner's choice, 2026-10-03; previously Sarbon24 → Sayyor on
   2026-09-28. "Sarbon" clashed with a competitor, IT GENIUS MCHJ, same niche). Code-level rename
   done: i18n texts (uz/kk/ru), web admin titles, logo wordmark, README/docs, Docker/infra
   identifiers (DB name/user `yukdosh`, TG_SESSION `yukdosh_session`, image name, linux user),
   GitHub repo renamed to `Yukdosh`, local git remote updated.
-  ⏳ Still open: domain/Telegram bot username/trademark checks (cctld.uz, @BotFather, ima.uz),
-  bot display name in @BotFather, pitch deck / research `.docx`/`.pdf` files (filenames +
-  content still say Sarbon24). Local Postgres DB must be renamed to `yukdosh` by the owner.
+  ✅ New bot **@yukdoshbot** (token swapped on server + PC 2026-10-15; @yukdosh_bot was taken).
+  Old @sarbon24_bot no longer runs. ⏳ BotFather: display name/description/userpic/commands
+  for @yukdoshbot; redirect note on @sarbon24_bot. ⏳ Domain/trademark checks (cctld.uz,
+  ima.uz); pitch deck / research `.docx`/`.pdf` files still say Sarbon24.
 - ⏳ Admin "Run pipeline now" button can't scrape inside Docker (session lives only in the
   scheduler container) — scraping happens via the scheduler; fine for now.
 - ⏳ `app/parser/groq.py` is dead code (factory doesn't route "groq").

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, delete, update
 
 from .db import SessionLocal
-from .models import Group, Setting, RawMessage, Load
+from .models import Group, Setting, RawMessage, Load, PostedLoad
 from .parser.factory import get_parser
 from .parser.dedup import dedup_hash
 from .parser.normalize import canonicalize_trucks
@@ -320,6 +320,8 @@ async def run_pipeline() -> dict:
         if retention_days > 0:
             prune_before = datetime.now(timezone.utc) - timedelta(days=retention_days)
             await s.execute(delete(Load).where(Load.posted_at < prune_before)
+                            .execution_options(synchronize_session=False))
+            await s.execute(delete(PostedLoad).where(PostedLoad.posted_at < prune_before)
                             .execution_options(synchronize_session=False))
             _stale = select(RawMessage.id).where(
                 RawMessage.processed == True,  # noqa: E712

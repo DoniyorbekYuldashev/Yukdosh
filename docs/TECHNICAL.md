@@ -124,6 +124,22 @@ can start before Postgres is ready). New columns on existing tables are added by
 **bot_users** — `tg_user_id` (PK), `username`, `first_name`, `language` (Telegram's),
 `lang` (chosen in bot: uz/kk/ru), `actions` (count), `first_seen`, `last_seen`.
 
+**post_targets** — groups/channels the bot posts into (`app/broadcast.py`): `chat` (unique,
+`@username` or numeric id; `normalize_chat()` turns t.me links into `@name`), `title`,
+`enabled`, `interval_minutes`, `loads_per_post` (1–10), `origin`/`destination` (geo-hierarchy
+filter, "" = any), `truck_type`, `lang` (uz/kk/ru), `last_posted_at`, `last_error`.
+
+**posted_loads** — `target_id`, `load_id`, `posted_at`: which load went to which target (never
+repost). Plain ids, **no FKs** (loads are deleted by retention); pruned with the same retention.
+
+Group posting flow: each scheduler tick (after `notify_new_loads`) → `post_to_groups(bot)`: for
+every enabled target whose interval has passed, pick the newest active loads (load_active_hours)
+matching its filter and not yet in `posted_loads`, render with `format_load(..., source=False)`
+(no 🔗 link), header `latest_title`, footer `group_post_footer` (bot @username from `get_me()`),
+cut to fit 4,000 chars, send with link previews off. Nothing new → no post. Send error (bot not
+in group / no rights) → stored in `last_error`, retried next interval. Card fields are
+HTML-escaped (`&`, `<` in posts used to break Telegram's HTML parsing).
+
 ---
 
 ## 4. Runtime settings (DB table `settings`, edited in admin → Settings)
@@ -289,6 +305,7 @@ HTTP Basic auth middleware on everything except `/health` (off when `ADMIN_PASSW
 | `POST /run` | Run pipeline in background (can't scrape in Docker web container — no session) |
 | `GET /api/loads` | Last 500 loads as JSON |
 | `GET /users` | Bot user analytics: total/new/active (24h/7d), searchable & sortable table, Tashkent time |
+| `POST /targets/add`, `/targets/{id}/update`, `/targets/{id}/toggle`, `/targets/{id}/delete` | Groups the bot posts loads to (Settings page card "Groups to post loads to") |
 | `GET /health` | `ok` (Docker healthcheck) |
 
 ---
