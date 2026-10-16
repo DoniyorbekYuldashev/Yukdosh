@@ -1,4 +1,5 @@
 """Render a structured load as a clean card for drivers, in the user's language."""
+import re
 from datetime import datetime, timezone, timedelta
 from html import escape
 
@@ -40,6 +41,36 @@ def _money(amount, currency, lang):
         return t(lang, "price_none")
     cur = _CURRENCY_SYMBOL.get(currency, currency or "")
     return f"{amount:,.0f} {cur}".strip()
+
+
+def _advance(value, lang):
+    """'1000 USD' -> 'Avans: 1,000 $'; '30%' -> 'Avans: 30%'; 'yes' -> 'Avans bor'."""
+    v = (value or "").strip()
+    if not v:
+        return ""
+    if v == "yes":
+        return t(lang, "advance_yes")
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([A-Z]{3})?", v)
+    if m:
+        v = _money(float(m.group(1)), m.group(2) or "", lang)
+    return f"{t(lang, 'advance')}: {v}"
+
+
+def _load_day(l, lang):
+    """'ready' / 'today' / 'tomorrow' in the reader's language — today/tomorrow counted from the
+    post time, so yesterday's "ertaga" shows as "Bugun"; real dates ("17.10") as written."""
+    v = (getattr(l, "loading_date", "") or "").strip()
+    if v == "ready":
+        return t(lang, "date_ready")
+    if v in ("today", "tomorrow"):
+        base = l.posted_at or datetime.now(timezone.utc)
+        if base.tzinfo is None:
+            base = base.replace(tzinfo=timezone.utc)
+        day = base.astimezone(TASHKENT).date() + timedelta(days=1 if v == "tomorrow" else 0)
+        today = datetime.now(TASHKENT).date()
+        names = {today: "today", today + timedelta(days=1): "tomorrow", today - timedelta(days=1): "yesterday"}
+        return t(lang, names[day]) if day in names else day.strftime("%d.%m")
+    return v
 
 
 def _truck_label(code, lang):
@@ -126,14 +157,24 @@ def format_load(l, lang=DEFAULT_LANG, num=None, link=False):
         row.append(f"🚚 {escape(label)}")
     elif getattr(l, "truck_count", None):
         row.append(f"🚚 ×{l.truck_count}")
+    size = []
     if l.weight_tons:
-        row.append(f"⚖️ {float(l.weight_tons):g} t")
+        size.append(f"{float(l.weight_tons):g} t")
+    if getattr(l, "volume_m3", None):
+        size.append(f"{float(l.volume_m3):g} m³")
+    if size:
+        row.append("⚖️ " + ", ".join(size))
     if row:
         lines.append(" · ".join(row))
 
     if l.cargo_type:
         lines.append(f"📦 {escape(l.cargo_type)}")
-    lines.append(f"💰 {escape(_money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang))}")
+    day = _load_day(l, lang)
+    if day:
+        lines.append(f"📅 {t(lang, 'date_label')}: {escape(day)}")
+    price = _money(float(l.price_amount) if l.price_amount else None, l.price_currency, lang)
+    adv = _advance(getattr(l, "advance", ""), lang)
+    lines.append(f"💰 {escape(price)}" + (f" · {escape(adv)}" if adv else ""))
     if l.contact_phone:
         lines.append(f"📞 {escape(l.contact_phone)}")
     return _common_tail(l, lines, lang, link)

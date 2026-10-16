@@ -69,6 +69,8 @@ CURRENCY_ALIASES = {
     "rub": "RUB", "руб": "RUB", "рубль": "RUB", "rubl": "RUB",
     "tenge": "KZT", "тенге": "KZT", "kzt": "KZT",
     "usd": "USD", "$": "USD", "dollar": "USD", "доллар": "USD",
+    "сўм": "UZS", "so‘m": "UZS", "soʻm": "UZS", "сом": "UZS", "₽": "RUB", "eur": "EUR", "€": "EUR",
+    "евро": "EUR", "euro": "EUR",
 }
 
 

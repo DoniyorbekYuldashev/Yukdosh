@@ -108,6 +108,46 @@ text, used = build_post([card] * 3, "uz", "@yukdoshbot")
 check("digest holds all loads that fit", len(used), 3)
 check("digest ends with bot pointer", text.rstrip().endswith("@yukdoshbot"), True)
 
+print("\n[Phones vs prices, advance, date, volume]")
+from app.pipeline import _extract_phones, _mask_phones, _check_dates, _clean_comments, _reattach_phones
+from app.parser.gemini import _to_parsed_load
+prices = ("Ғазалкент -  Қўқон 2 та  - 3 900 000 сум\nҒазалкент - Самарканд 3 та  -  4 700 000 сум\n"
+          "Ташкент -  Денау 3 та  - 9 500 000 сум\n🚛 Тент ёке Реф фура керак\n+998701786565")
+check("prices with 'сум' are not phones; the real phone is found", _extract_phones(prices), ["+998701786565"])
+check("prices survive masking, the phone does not",
+      ("3 900 000 сум" in _mask_phones(prices), "701786565" in _mask_phones(prices)), (True, False))
+check("price written before a phone line doesn't hide the phone", _extract_phones("Фрахт: 4800$\n947108288"), ["947108288"])
+check("bare thousands-grouped number is a price", _extract_phones("Narx 12 500 000\nTel 90 123 45 67"), ["90 123 45 67"])
+check("dates and truck volumes are not phones", _extract_phones("22 Т  23 07 2026\nтент 86-88-92-96-100-105 куб"), [])
+check("same phone with and without +998 listed once", _extract_phones("+998772248141, 772248141"), ["+998772248141"])
+junk = [ParsedLoad(origin_city="a", destination_city="b", contact_phone="СРОЧНО")]
+_reattach_phones(junk, "Курган - Андижан, тент")
+check("a word is never kept as the phone", junk[0].contact_phone, "")
+diip = _to_parsed_load({"origin_city": "Toshkent (poytaxt)", "destination_city": "Boku (poytaxt)",
+                        "advance": "1000.00 USD", "loading_date": "Ortishga Tayyor", "volume_m3": "96.00"})
+check("'(poytaxt)' dropped, advance/date normalized",
+      (diip.origin_city, diip.destination_city, diip.advance, diip.loading_date, diip.volume_m3),
+      ("Toshkent", "Boku", "1000 USD", "ready", 96.0))
+check("'avans bor' -> yes, '30 %' -> 30%", [_to_parsed_load({"advance": x}).advance for x in ("bor", "30 %")], ["yes", "30%"])
+inv = [ParsedLoad(origin_city="a", destination_city="b", loading_date="ready")]
+_check_dates(inv, "Тошкент → Улан-уде, лук, 4800$")
+check("model-invented 'ready' is removed", inv[0].loading_date, "")
+two = [ParsedLoad(origin_city="Курган", destination_city=d, cargo_type="лес") for d in ("Андижан", "Фаргона")]
+_check_dates(two, "КУРГАН АНДИЖАН\nКУРГАН ФАРГОНА\nГруз готов оплата наличными\nлес")
+check("'Груз готов' for a shared block -> ready on every load", [x.loading_date for x in two], ["ready", "ready"])
+noisy = [ParsedLoad(origin_city="a", destination_city="b", advance="yes", comment="Naqd kelishiladi, WhatsApp. Аванс бор.")]
+_clean_comments(noisy)
+check("comment loses 'kelishiladi', app names and the repeated advance", noisy[0].comment, "Naqd")
+from datetime import datetime, timezone, timedelta
+full = SimpleNamespace(**{**vars(card), "weight_tons": 22, "volume_m3": 96, "price_amount": 4000, "price_currency": "USD",
+                          "advance": "1000 USD", "loading_date": "ready", "truck_count": 1})
+txt = format_load(full, "uz")
+check("card: tons + m³, date, price + advance",
+      ("22 t, 96 m³" in txt, "📅 Sana: Ortishga tayyor" in txt, "💰 4,000 $ · Avans: 1,000 $" in txt), (True, True, True))
+yday = SimpleNamespace(**{**vars(card), "loading_date": "tomorrow", "posted_at": datetime.now(timezone.utc) - timedelta(days=1)})
+check("yesterday's 'ertaga' shows as 'Bugun'", "📅 Sana: Bugun" in format_load(yday, "uz"), True)
+check("no advance -> plain 'kelishiladi'", "💰 kelishiladi\n" in format_load(card, "uz"), True)
+
 print("\n[Flags: country flag before each place on cards]")
 from app.parser.geo import flag_of
 check("Uzbek city, region and suffixed forms -> 🇺🇿",

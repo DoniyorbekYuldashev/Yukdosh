@@ -16,21 +16,34 @@ FIELDS:
 - is_load: default true (omit it); false ONLY for an empty truck seeking cargo ("bo'sh mashina",
   "свободная машина", "фура бор").
 - origin_city / destination_city: keep EXACTLY as written INCLUDING district ("Toshkent Yashnobod"
-  stays; don't shorten or convert to region). First place = origin, second = destination.
+  stays; don't shorten or convert to region), minus "(poytaxt)"/"(столица)". First place = origin.
 - truck_type: type(s) only from tent/ref/isotherm/flatbed/container/dump/isuzu/labo/paravoz.
   "тент/реф"->"tent, ref"; "isuzu kerak"->"isuzu"; "Labo"->"labo"; "paravoz/автопоезд" is a
   road-train -> add it ("tent, paravoz"). "Сборка/сборный" is NOT a truck (-> comment). "тент/120":
-  120 is volume -> comment. "farqi yo'q"/none -> omit truck_type.
+  120 is volume -> volume_m3. "farqi yo'q"/none -> omit truck_type.
 - cargo_type: the goods (paxta, масло, полиэтилен, "bolgariskiy"=pepper). Never a truck word.
 - truck_count: number of trucks ("4 авто", "20 mashina", "тент 13").
 - weight_tons: tons number; range "22-23т"->22; kg->tons ("200 кг"->0.2, "20000 кг"->20).
-- price: set price_amount ONLY with a real number+currency ($->USD, сум->UZS, руб->RUB, тенге->KZT;
-  "45 mln"->45000000). A DATE ("30.07", "28-30.07", "на 28.07") is NEVER a price -> comment.
-  "$"/"наличный"/"накд"/"naqd" with NO number = cash -> omit price, write "naqd" in comment. A bare
-  number with no currency -> omit price.
-- contact_phone: ALL phones, comma-separated; shared phone on every load.
-- comment: EVERYTHING else - dates, urgency (СРОЧНО/ГОРИТ), payment ("наличный"), volume ("90 куб"),
-  "dagruz", unload side. Rarely empty on a real load.
+- volume_m3: cubic meters ("96 m³", "96 куб", "120 kub", "тент 120"); range "96-105"->96.
+- price_amount + price_currency: the FULL freight price ("4000 USD", "3 900 000 сум"->3900000 UZS,
+  "45 mln"->45000000, "11 milyon 500 ming"->11500000, "2.5 млн"->2500000). $->USD, сум/so'm->UZS,
+  руб->RUB, тенге->KZT. A price may be a bare number with no currency word: a big round number
+  (>=100 000) next to a route or after "narx/цена/фрахт/ставка/to'lov/оплата" is a price in UZS;
+  a smaller labelled one ("Фрахт: 2200") is a price with currency omitted. Each direction line with
+  its own price ("Ғазалкент - Қўқон 2 та - 3 900 000 сум") -> that price belongs to THAT load only.
+  NOT a price: dates ("30.07", "28-30.07"), counts ("2 та"), tons, volumes, phones.
+  "kelishiladi"/"договорная" or cash words with no number ("naqd", "$ накд") -> omit price.
+- advance: the prepayment, if mentioned ("Avans 1000.00 USD"->"1000 USD", "аванс 30%"->"30%",
+  "аванс 500$"->"500 USD", "аванс есть"/"avans bor"->"yes"). Never add the advance to the price.
+- loading_date: WHEN to load, if mentioned: "17.10", "28-30.07", "17 oktyabr"->"17.10";
+  "Ortishga tayyor"/"груз готов"/"yuk tayyor"->"ready"; "bugun"/"сегодня"->"today";
+  "ertaga"/"завтра"->"tomorrow"; other short words as written ("dushanba"). Omit if not mentioned.
+- contact_phone: phones are removed from the text before you see it, so normally omit it. Only
+  if you still see a phone NUMBER (digits), copy it; never put words there.
+- comment: EVERYTHING else - urgency (СРОЧНО/ГОРИТ), payment method ("naqd", "перечисление",
+  "Pul o'tkazma"), "dagruz", customs, unload side. Do NOT repeat what is already in a field
+  (price, advance, date, volume, weight), and never write "kelishiladi"/"договорная" or contact
+  app names (WhatsApp, Telegram, IMO) there.
 
 A load needs origin_city + destination_city; skip it if either is missing. Ignore ads/greetings/promos.
 Follow the DOMAIN NOTES and EXAMPLES below.

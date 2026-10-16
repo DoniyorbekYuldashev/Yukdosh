@@ -1,6 +1,7 @@
 """Gemini parser. Auto-resolves a working flash model from your account, so it keeps working
 even when Google renames models. Free key: https://aistudio.google.com/app/apikey"""
 import json
+import re
 
 from .base import LLMParser
 from .prompt import build_system_prompt, user_prompt, batch_user_prompt
@@ -53,8 +54,52 @@ class GeminiParser(LLMParser):
         return split_batch(json.loads(resp.text), len(texts))
 
 
+# "Boku (poytaxt)" -> "Boku": the capital marker is not part of the place name
+_CAPITAL = re.compile(r"(?i)\s*\((?:poytaxt|пойтахт|столица|capital)\)")
+_DATE_WORDS = {
+    "ready": ("ready", "tayyor", "ortishga tayyor", "yuk tayyor", "готов", "груз готов",
+              "готов к загрузке", "тайёр", "юк тайёр", "дайын"),
+    "today": ("today", "bugun", "бугун", "бугунга", "сегодня", "бүгін"),
+    "tomorrow": ("tomorrow", "ertaga", "эртага", "завтра", "ертең"),
+}
+_YES = ("yes", "bor", "бор", "есть", "имеется", "true", "бар")
+
+
+def _norm_date(v: str) -> str:
+    """Keywords become 'ready' / 'today' / 'tomorrow' (rendered in the reader's language and
+    relative to the post time); real dates stay as written ("17.10", "28-30.07")."""
+    v = (v or "").strip().strip(".")
+    low = v.lower().replace("’", "'").replace("ʻ", "'")
+    for key, words in _DATE_WORDS.items():
+        if low in words:
+            return key
+    return v
+
+
+def _norm_advance(v: str) -> str:
+    """'1000.00 USD' -> '1000 USD'; '30 %' -> '30%'; 'bor'/'есть' -> 'yes'."""
+    v = (v or "").strip()
+    if not v or v.lower() in ("no", "yo'q", "нет", "false", "0"):
+        return ""
+    if v.lower() in _YES:
+        return "yes"
+    m = re.fullmatch(r"(\d[\d\s]*(?:[.,]\d+)?)\s*(%|[^\d\s].*)?", v)
+    if not m:
+        return v
+    num = float(re.sub(r"\s", "", m.group(1)).replace(",", "."))
+    unit = (m.group(2) or "").strip()
+    num_s = f"{num:g}" if num < 1e6 else f"{num:.0f}"
+    if unit == "%":
+        return f"{num_s}%"
+    return f"{num_s} {canonical_currency(unit)}".strip() if unit else num_s
+
+
 def _to_parsed_load(data: dict) -> ParsedLoad:
     load = ParsedLoad(**{k: data.get(k) for k in ParsedLoad.model_fields if data.get(k) is not None})
+    load.origin_city = _CAPITAL.sub("", load.origin_city).strip()
+    load.destination_city = _CAPITAL.sub("", load.destination_city).strip()
+    load.loading_date = _norm_date(load.loading_date)
+    load.advance = _norm_advance(load.advance)
     oc, orr = canonical_city(load.origin_city)
     dc, drr = canonical_city(load.destination_city)
     load.origin_city, load.origin_region = oc, orr or load.origin_region

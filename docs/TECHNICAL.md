@@ -19,7 +19,7 @@ Contents: 1 Architecture · 2 Pipeline step by step · 3 Database · 4 Settings 
  [scheduler process] ── app/scheduler.py ── every N min (settings) ──┐
         │ run_pipeline()                                            │ notify_new_loads()
         ▼                                                           ▼
- raw_messages ─► prefilter ─► mask phones ─► OpenAI (10 msgs/call) ─► re-attach phones
+ raw_messages ─► prefilter ─► mask phones ─► OpenAI (5 msgs/call) ─► re-attach phones
         ─► fill truck from text ─► require origin+destination ─► dedup (24h) ─► loads
                                                                    │
         ┌──────────────────────────────────────────────────────────┤
@@ -50,7 +50,7 @@ provider is a setting, not a code change.
 ## 2. Pipeline step by step (`app/pipeline.py::run_pipeline`)
 
 Constants: `DEDUP_WINDOW_HOURS=24`, `PARSE_CONCURRENCY=5`, `MAX_PARSE_PER_RUN=200`,
-`BATCH_SIZE=10`. Retention comes from the `load_retention_days` setting (§4).
+`BATCH_SIZE=5`, `BATCH_CHARS=3000`. Retention comes from the `load_retention_days` setting (§4).
 
 1. **Load settings** from the `settings` table (fresh every run).
    Provider = `parser_provider`; keys = setting value or `.env` fallback.
@@ -68,18 +68,28 @@ Constants: `DEDUP_WINDOW_HOURS=24`, `PARSE_CONCURRENCY=5`, `MAX_PARSE_PER_RUN=20
    - `_looks_like_load` — must contain a phone, a truck word, a tonnage (`20t`, `кг`, `куб`),
      or a known place. Otherwise marked processed and skipped.
    - Byte-identical reposts (same letters/digits) → parse only one representative.
-7. **Mask phones** (`_mask_phones`): any `+…` number or any digit run of ≥9 digits
-   (after removing spaces/dashes/brackets) is replaced by a space. Shorter numbers
-   (prices, tons, dates) are kept.
-8. **Parse in batches:** chunks of 10 messages → `parser.parse_batch`, 2 chunks per wave,
+7. **Mask phones** (`_mask_phones`): every digit run (never across a line break) that
+   `_phone_at()` calls a phone is replaced by a space. A phone = 9–13 digits; `+…` always;
+   NOT a phone when a currency follows on the same line ("3 900 000 сум", "4800$", "млн"), a price
+   word precedes it on the same line ("Narx:", "Фрахт", "Ставка", "Аванс", "$"), or it is grouped in
+   thousands ending 000 ("12 500 000") without a 998/7/8 prefix. Prices, tons, dates stay visible.
+   Before 2026-10-16 any 7+ digit run was a "phone": prices, dates (`22 07 2026`) and volumes
+   (`86-88-92-96`) were shown as phones and the real number was cut (only 2 kept).
+8. **Parse in batches:** up to 5 messages / 3,000 chars per call → `parser.parse_batch`
+   (temperature 0, max 6,000 output tokens; broken JSON → retry those messages one by one),
+   2 chunks per wave,
    run in a thread executor. **Circuit breaker:** if every item of a wave errors, stop the run
    (prints "API QUOTA EXHAUSTED" for quota errors).
 9. **Per message result:**
    - error with `429`/`rate_limit`/`quota` → left unprocessed (retried next run);
    - other error → `parse_attempts += 1`, give up after 3;
-   - success → `_reattach_phones` (real phones from the ORIGINAL text, max 2, joined;
-     if regex finds none, the model's value is kept), `_fill_truck_from_text` (single-load
-     messages only), keep only loads having BOTH origin and destination.
+   - success → `_reattach_phones` (real phones from the ORIGINAL text, max 2, deduped by last
+     9 digits; if regex finds none, the model's value is kept only if it has ≥7 digits — the
+     model writes words like "СРОЧНО" there), `_fill_truck_from_text` (single-load messages
+     only), `_check_dates` (drop a model 'ready'/'today'/'tomorrow' the post doesn't say; add
+     'ready' for "груз готов"/"ortishga tayyor"), `_clean_comments` (drop "kelishiladi",
+     WhatsApp/Telegram/IMO, and "Аванс…" when `advance` is set), keep only loads having BOTH
+     origin and destination.
 10. **Dedup & insert:** `dedup_hash(load)`; if the same hash exists with `posted_at` in the
     last 24h → skip; else insert `Load` (copies raw text, source group/msg id, sender).
 11. **Prune** (skipped when `load_retention_days` = 0): loads with `posted_at` older than
@@ -110,7 +120,9 @@ can start before Postgres is ready). New columns on existing tables are added by
 - `is_load` (False = empty truck), `listing_type` (`load` | `goods` | `truck`)
 - `origin_city`, `origin_region`, `destination_city`, `destination_region`
 - `cargo_type`, `weight_tons`, `volume_m3`, `truck_type` (comma list of codes), `truck_count`
-- `price_amount`, `price_currency` (UZS/USD/RUB/KZT), `loading_date`
+- `price_amount`, `price_currency` (UZS/USD/RUB/KZT/EUR), `advance` ("1000 USD" | "30%" | "yes"),
+  `loading_date` ("17.10" | "28-30.07" | `ready` | `today` | `tomorrow` | short text; keywords
+  are shown in the reader's language, today/tomorrow counted from `posted_at`)
 - `contact_phone` (comma list), `contact_name`, `comment` (everything else)
 - `language_detected`, `parser_provider` (`openai`/`bot`/…), `dedup_hash` (indexed)
 - `notified` (already pushed to subscribers)
@@ -469,6 +481,8 @@ using `<<: *app`.
   OpenAI gives 30 days' notice before ending the program. Needs a positive account balance.
 - Historic peak before optimisation: 7.7M tokens, 1,320 requests, $2.64 on 20 Jul 2026.
   Estimated after optimisation: ~250–350 tokens per message → ~0.4M tokens/day at that volume.
+  2026-10-16: batches cut 10 → 5 (measured +20% loads found) → ~1.5× input tokens per message
+  (the ~3.3k-token instructions repeat per call; OpenAI caches most of them).
 - **Hosting**: Azure `Standard_B2als_v2` (Central India) ≈ $18/month + ~$5–10 (IP, disk,
   bandwidth); free via the $200 credit until 2026-11-14, then billed (account must be upgraded
   to pay-as-you-go before that date). Free fallback: Azure's 12-month free `B2ats_v2` (1 GB) with

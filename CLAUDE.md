@@ -115,7 +115,7 @@ app/parser/geo.py        region/district hierarchy, RU↔UZ city aliases, locati
 app/parser/dedup.py      dedup_hash(): route + last-9-digits of phone
 app/scraper/             telethon_client.py (incremental fetch), worker.py (persistent), login/logout
 data/patterns.md         short domain hints injected into the prompt
-data/few_shot.jsonl      6 worked examples injected into the prompt (real failure cases)
+data/few_shot.jsonl      8 worked examples injected into the prompt (real failure cases)
 data/sample_messages.jsonl  offline demo input (used when no Telegram creds)
 data/real_samples.jsonl  exported real posts for labelling (contains real phone numbers!)
 tests/ + run_tests.py    geo, trucks, dedup, filters
@@ -136,13 +136,15 @@ Sarbon24_*.docx/pdf      research docs + Uzbek pitch deck (not code; filenames n
    the wrong DB and the owner was rightly upset.)
 2. **Phone numbers must never reach an external API.** `pipeline._mask_phones()` strips them
    before `parse_batch`; `_reattach_phones()` puts the real ones back from the original text
-   and must NEVER blank a phone the model returned when regex finds none. Keep both.
+   and must NEVER blank a phone NUMBER the model returned when regex finds none (only values with
+   <7 digits — words like "СРОЧНО" — are dropped). Prices are NOT phones: `_phone_at()` decides
+   (currency/price word on the same line, thousands ending 000). Keep all three.
 3. **Deleting raw_messages:** always unlink first —
    `UPDATE loads SET raw_message_id=NULL` — then delete (Postgres enforces the FK).
 4. **`batch_user_prompt()` in prompt.py is imported by openai_p and gemini.** It was once
    deleted by accident and silently broke OpenAI. Don't remove it.
 5. **Local parser does NOT batch** (batching made small models merge multi-load posts).
-   Paid APIs DO batch (`BATCH_SIZE = 10`). Keep the circuit breaker in `run_pipeline`
+   Paid APIs DO batch (`BATCH_SIZE = 5` + `BATCH_CHARS` — 10 per call lost ~17% of loads). Keep the circuit breaker in `run_pipeline`
    (stops the run when a whole wave fails — prevents quota-draining retry storms).
 6. **Every user-facing string goes through `app/bot/i18n.py` in ALL FOUR languages
    (uz, kk, ru, en).** `run_tests.py` fails if any language misses a key. Button handlers match with `F.text.in_(variants("key"))`, never a
@@ -196,7 +198,8 @@ paged results (5 per page, "Keyingi ➡️"). Region names match all their distr
 match (Бухара = Buxoro). Only loads newer than `load_active_hours` (default **12h** — owner raised it from 6h on
 2026-10-05 because quiet routes had too few loads) are shown, newest first.
 Card shows: route with a country flag before each place (🇺🇿 Toshkent → 🇷🇺 Moskva; `geo.flag_of`,
-no flag when unknown/ambiguous), trucks ×count, tons, cargo, price, phone, comment, time (Tashkent UTC+5,
+no flag when unknown/ambiguous), trucks ×count, tons + m³, cargo, 📅 Sana (date / "Ortishga tayyor", only if given), price +
+"Avans: …" (kelishiladi when no price), phone, comment, time (Tashkent UTC+5,
 "Bugun 16:54"). Multi-card messages (search pages, "Yangi yuklar") number the cards and carry
 `📄 1 … 📄 N` buttons + a hint line; a single card (notifications) gets one `📄 Asl matn` button.
 Bot-posted loads have no button (no original post).
@@ -218,7 +221,10 @@ to post (admin in channels); send errors show under the group in the admin.
   JSON (`{"loads":[...]}`, empty fields omitted). Rule #1 of the prompt: split EVERY direction
   into its own load.
 - To improve accuracy: add a real failing post + correct output to `few_shot.jsonl`
-  (keep it small — ~6 examples; every example costs tokens on every call).
+  (keep it small — ~8 examples; every example costs tokens on every call).
+- OpenAI runs at **temperature 0** (default 1 invented words and missed fields). Don't trust the
+  model alone for things code can check: phones come from regex (`_phone_at` tells phone from
+  price), date keywords are verified against the post (`_check_dates`), comments cleaned in code.
 - OpenAI data-sharing free tier is ON for the project: 2.5M tokens/day free on mini models
   (tier 1–2). Phone masking is what makes sharing acceptable. Watch the Usage page.
 - Local Qwen3 (Ollama) was tried and rejected for production — too many mistakes on

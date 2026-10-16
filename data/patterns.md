@@ -5,6 +5,7 @@ is_load = false (EMPTY TRUCK) only for: "bo'sh mashina", "свободная м�
 
 Price: "45 mln"/"45 млн" -> 45000000; "1.5 mln" -> 1500000. "kelishilgan"/"договорная"/
 "нарх келишамиз" -> price null (negotiable). "tonnasi 500"/"за тонну" = per-ton — capture the number.
+"СТАВКА/СТАФКА/ФРАХТ/Fraxt/Stavka/Narx/To'lov" introduce the price. "Avans/Аванс" is the advance.
 Weight: "20000 кг" -> 20 tons (divide by 1000).
 
 A message very often lists MANY loads — extract EVERY direction as its own load, never just the first.

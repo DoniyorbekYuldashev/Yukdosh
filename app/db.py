@@ -65,7 +65,7 @@ _WANTED_COLUMNS = {
     "groups": {"max_messages": "INTEGER", "hours_back": "INTEGER", "last_msg_id": "INTEGER"},
     "raw_messages": {"parse_attempts": "INTEGER DEFAULT 0"},
     "bot_users": {"lang": "VARCHAR(8) DEFAULT ''"},
-    "loads": {"listing_type": "VARCHAR(16) DEFAULT 'load'", "posted_by_tg": "VARCHAR(64) DEFAULT ''", "truck_count": "INTEGER", "comment": "TEXT DEFAULT ''", "source_msg_id": "VARCHAR(64) DEFAULT ''", "notified": "BOOLEAN DEFAULT 0", "poster_username": "VARCHAR(64) DEFAULT ''"},
+    "loads": {"listing_type": "VARCHAR(16) DEFAULT 'load'", "posted_by_tg": "VARCHAR(64) DEFAULT ''", "truck_count": "INTEGER", "comment": "TEXT DEFAULT ''", "source_msg_id": "VARCHAR(64) DEFAULT ''", "notified": "BOOLEAN DEFAULT 0", "poster_username": "VARCHAR(64) DEFAULT ''", "advance": "VARCHAR(32) DEFAULT ''"},
 }
 
 

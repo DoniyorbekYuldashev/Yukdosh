@@ -76,8 +76,9 @@ class Load(Base):
 
     price_amount: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     price_currency: Mapped[str] = mapped_column(String(8), default="")
+    advance: Mapped[str] = mapped_column(String(32), default="")  # "1000 USD" | "30%" | "yes"
 
-    loading_date: Mapped[str] = mapped_column(String(32), default="")
+    loading_date: Mapped[str] = mapped_column(String(32), default="")  # "17.10" | "ready" | "today" | "tomorrow"
     contact_phone: Mapped[str] = mapped_column(String(64), default="")
     contact_name: Mapped[str] = mapped_column(String(128), default="")
 

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 _STR_FIELDS = (
     "origin_city", "origin_region", "destination_city", "destination_region",
-    "cargo_type", "truck_type", "price_currency", "loading_date",
+    "cargo_type", "truck_type", "price_currency", "advance", "loading_date",
     "contact_phone", "contact_name", "language_detected", "comment",
 )
 _NUM_FIELDS = ("weight_tons", "volume_m3", "price_amount")
@@ -29,8 +29,9 @@ class ParsedLoad(BaseModel):
 
     price_amount: Optional[float] = None
     price_currency: str = ""
+    advance: str = ""             # "1000 USD" | "30%" | "yes" (advance mentioned, no amount)
 
-    loading_date: str = ""
+    loading_date: str = ""         # "17.10" | "28-30.07" | "ready" | "today" | "tomorrow" | short text
     contact_phone: str = ""        # Phone number(s), comma-separated
     contact_name: str = ""
 

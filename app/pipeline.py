@@ -19,7 +19,9 @@ from . import config
 DEDUP_WINDOW_HOURS = 24    # collapse repeats of the same load within this window
 PARSE_CONCURRENCY = 5      # how many messages to parse at once
 MAX_PARSE_PER_RUN = 200    # parse newest N queued messages per run (prioritise fresh loads)
-BATCH_SIZE = 10            # messages packed into ONE API call -> 10x fewer requests (RPD limits)
+BATCH_SIZE = 5             # messages per API call. Measured 2026-10-16 on 40 real posts: 10/call
+                           # found 158 loads, 5/call 190 (the model drops loads in long batches)
+BATCH_CHARS = 3000         # ...and at most this much text per call (long multi-load posts)
 
 _NOISE_RE = re.compile(r"https?://\S+|t\.me/\S+|@\w+")
 
@@ -73,34 +75,55 @@ def _is_meaningful(pl) -> bool:
     return bool(pl.origin_city and pl.destination_city)
 
 
-_PHONE_RE = re.compile(r"\+?\d[\d\s\-()]{6,}\d")
+# A digit run that MIGHT be a phone. Never across a line break, so a price line and the phone
+# on the next line stay apart.
+_NUM_RUN = re.compile(r"\+?\d[\d \t\-()]{6,}\d")
+# money right after the number -> it is a price ("3 900 000 сум", "4 700 000so'm", "1 500 000$")
+_MONEY_AFTER = re.compile(r"(?i)^[ \t]*(?:so['ʻ’`‘]?m|сум|сўм|sum\b|сом|uzs|\$|usd|долл|dollar|руб|rub|₽|"
+                          r"тенге|тг\b|kzt|млн|mln|million|ming|минг|тыс|k\b|euro|евро|€)")
+# a price label right before it, on the same line ("Narx: 4 500 000", "Аванс 1 000 000", "$ 1 200 000")
+_MONEY_BEFORE = re.compile(r"(?i)(?:narx|нарх|цена|price|to['ʻ’`‘]?lov|тўлов|тулов|оплата|avans|аванс|"
+                           r"kira|кира|fraxt|фрахт|ставка|\$)[ \t]*[:=\-]?[ \t]*\Z")
+_THOUSANDS = re.compile(r"^\d{1,3}(?:[ \t]\d{3})+$")      # "3 900 000", "12 500 000"
+
+
+def _phone_at(text: str, m) -> bool:
+    """Is this digit run a phone number (not a price, date or weight)?
+    Phones: 9-13 digits, usually written together or as +998 90 123 45 67.
+    Prices: followed by a currency, preceded by a price word, or grouped in thousands ending 000."""
+    s = m.group(0).strip()
+    digits = re.sub(r"\D", "", s)
+    if not 9 <= len(digits) <= 13:
+        return False
+    if s.startswith("+"):                 # prices are never written with a leading +
+        return True
+    if _MONEY_AFTER.match(text[m.end():m.end() + 12]) or _MONEY_BEFORE.search(text[max(0, m.start() - 16):m.start()]):
+        return False
+    international = digits.startswith("998") or (len(digits) == 11 and digits[0] in "78")
+    if not international and _THOUSANDS.match(s) and digits.endswith("000"):
+        return False
+    return True
 
 
 def _extract_phones(text: str) -> list[str]:
-    """Pull phone-like numbers from the raw message (7-15 digits)."""
-    out = []
-    for c in _PHONE_RE.findall(text or ""):
-        if 7 <= len(re.sub(r"\D", "", c)) <= 15:
-            c = c.strip()
-            if c not in out:
-                out.append(c)
+    """The message's phone numbers, in order, without duplicates (prices are skipped).
+    "+998772248141" and "772248141" are the same phone (compared by the last 9 digits)."""
+    out, seen = [], set()
+    for m in _NUM_RUN.finditer(text or ""):
+        if _phone_at(text, m):
+            key = re.sub(r"\D", "", m.group(0))[-9:]
+            if key not in seen:
+                seen.add(key)
+                out.append(m.group(0).strip())
     return out
-
-
-_PHONE_CAND = re.compile(r"\+?\d[\d\s\-()]{6,}\d")
 
 
 def _mask_phones(text: str) -> str:
     """Remove phone numbers from text BEFORE it is sent to any external API (privacy /
-    data-minimization). A phone = a +-prefixed run, or 9+ digits (phones are 9-12; prices/
-    weights are shorter, so they survive). The real number is re-attached locally afterwards."""
-    def repl(m):
-        s = m.group(0)
-        digits = re.sub(r"\D", "", s)
-        if s.strip().startswith("+") or len(digits) >= 9:
-            return " "          # looks like a phone -> strip it
-        return s                # short number (price/weight/count) -> keep
-    return _PHONE_CAND.sub(repl, text or "")
+    data-minimization). Prices, dates and weights stay so the model can read them.
+    The real number is re-attached locally afterwards."""
+    text = text or ""
+    return _NUM_RUN.sub(lambda m: " " if _phone_at(text, m) else m.group(0), text)
 
 
 def _reattach_phones(loads, raw_text: str) -> None:
@@ -110,7 +133,13 @@ def _reattach_phones(loads, raw_text: str) -> None:
     the regex can't parse falls back to the model instead of becoming an EMPTY cell."""
     real = _extract_phones(raw_text)
     if not real:
-        return  # nothing regex-detectable -> keep model's value (never blank it out)
+        # nothing regex-detectable -> keep the model's value (never blank a real phone out),
+        # but only if it IS a number: with phones masked the model sometimes writes a nearby
+        # word there ("СРОЧНО", "WhatsApp", "Best One :")
+        for pl in loads:
+            if len(re.sub(r"\D", "", pl.contact_phone or "")) < 7:
+                pl.contact_phone = ""
+        return
     joined = ", ".join(dict.fromkeys(p.strip() for p in real[:2]))
     for pl in loads:
         pl.contact_phone = joined
@@ -126,6 +155,45 @@ def _fill_shared_phone(loads, raw_text: str) -> None:
     for pl in loads:
         if not (pl.contact_phone or "").strip():
             pl.contact_phone = fallback
+
+
+_DAY_WORDS = {
+    "ready": re.compile(r"(?i)tayyor|тайёр|тайер|готов|дайын|ready"),
+    "today": re.compile(r"(?i)bugun|бугун|бүгін|сегодня|today"),
+    "tomorrow": re.compile(r"(?i)ertaga|эртага|ертең|завтра|tomorrow"),
+}
+_READY_PHRASE = re.compile(r"(?i)груз\s+готов|готов\s+к\s+(?:загрузке|погрузке)|ortishga\s+tayyor|"
+                           r"yuk\s+tayyor|юк\s+тайёр|ортишга\s+тайёр|yuklashga\s+tayyor")
+# words that add nothing to a card comment (the price line already says "kelishiladi")
+_COMMENT_NOISE = re.compile(r"(?i)\b(?:kelishiladi|kelishamiz|kelishilgan|келишилади|келишамиз|"
+                            r"договорн\w*|whats\s?app|ватсап|telegram|телеграмм?|imo|имо)\b")
+
+
+def _check_dates(loads, raw_text: str) -> None:
+    """The model may invent 'ready'/'today'/'tomorrow' or miss them: keep a keyword only if the
+    post really says it, and add 'ready' when the post says "груз готов"/"ortishga tayyor"
+    (single load, the phrase repeated for every load, or all loads from one shared block)."""
+    for pl in loads:
+        rx = _DAY_WORDS.get(pl.loading_date)
+        if rx and not rx.search(raw_text or ""):
+            pl.loading_date = ""
+    n = len(_READY_PHRASE.findall(raw_text or ""))
+    one_block = len({(pl.cargo_type, pl.comment, pl.truck_type) for pl in loads}) == 1
+    if n and (n >= len(loads) or one_block):
+        for pl in loads:
+            if not pl.loading_date:
+                pl.loading_date = "ready"
+
+
+_ADVANCE_WORDS = re.compile(r"(?i)\b(?:avans|аванс)\b[\s:]*(?:bor|бор|бар|есть|имеется|\d[\d\s.,]*\s*(?:\$|usd|%)?)?")
+
+
+def _clean_comments(loads) -> None:
+    for pl in loads:
+        c = _COMMENT_NOISE.sub("", pl.comment or "")
+        if pl.advance:                          # already on the price line
+            c = _ADVANCE_WORDS.sub("", c)
+        pl.comment = re.sub(r"\s*([.,;])(?:\s*[.,;])+", r"\1", re.sub(r"\s{2,}", " ", c)).strip(" .,;")
 
 
 def _fill_truck_from_text(loads, raw_text: str) -> None:
@@ -243,7 +311,14 @@ async def run_pipeline() -> dict:
         # Parse in small chunks with a CIRCUIT BREAKER: if a whole chunk fails (dead key,
         # exhausted quota, hard rate limit) stop the run instead of firing hundreds of
         # doomed calls every cycle.
-        groups = [to_parse[i:i + BATCH_SIZE] for i in range(0, len(to_parse), BATCH_SIZE)]
+        groups, cur = [], []
+        for r in to_parse:
+            if cur and (len(cur) >= BATCH_SIZE or sum(len(x.text or "") for x in cur) + len(r.text or "") > BATCH_CHARS):
+                groups.append(cur)
+                cur = []
+            cur.append(r)
+        if cur:
+            groups.append(cur)
         results = []
         api_error = ""
         api_calls = 0
@@ -283,6 +358,8 @@ async def run_pipeline() -> dict:
             raw.processed = True
             _reattach_phones(loads, raw.text)     # real phone (masked before API) re-attached; never blank
             _fill_truck_from_text(loads, raw.text)   # recover 'isuzu kerak' etc. into truck_type
+            _check_dates(loads, raw.text)            # no invented 'ready'/'today'; add missed 'груз готов'
+            _clean_comments(loads)                   # drop 'kelishiladi', 'WhatsApp' from comments
             meaningful = [pl for pl in loads if _is_meaningful(pl)]
             if not meaningful:
                 skipped_junk += 1
@@ -302,7 +379,8 @@ async def run_pipeline() -> dict:
                     cargo_type=pl.cargo_type, weight_tons=pl.weight_tons, volume_m3=pl.volume_m3,
                     truck_type=pl.truck_type, truck_count=pl.truck_count,
                     price_amount=pl.price_amount, price_currency=pl.price_currency,
-                    loading_date=pl.loading_date, contact_phone=pl.contact_phone, contact_name=pl.contact_name,
+                    advance=pl.advance[:32], loading_date=pl.loading_date[:32],
+                    contact_phone=pl.contact_phone[:64], contact_name=pl.contact_name,
                     comment=pl.comment, language_detected=pl.language_detected,
                     parser_provider=parser.name, dedup_hash=h,
                     source_group=raw.source_group, source_msg_id=raw.source_msg_id,
