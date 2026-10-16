@@ -197,17 +197,55 @@ def _clean_comments(loads) -> None:
 
 
 def _fill_truck_from_text(loads, raw_text: str) -> None:
-    """If a single-load message names a truck (e.g. 'isuzu kerak', 'tent') but the model left
-    truck_type empty, recover it from the message text. Single-load only, to avoid mixing
-    truck types across different directions in a multi-load post."""
-    if len(loads) != 1:
+    """The model left truck_type empty but the post names a truck ('isuzu kerak', 'Тент ёки Реф
+    фура керак'): recover it from the text. Single load -> from the whole text. Several loads
+    -> only when NONE has a truck and every truck line in the post says the same thing (one
+    shared line like "🚛 Тент ёке Реф фура керак"), so different blocks never get mixed up."""
+    if not loads or any((pl.truck_type or "").strip() for pl in loads):
         return
-    pl = loads[0]
-    if (pl.truck_type or "").strip():
+    if len(loads) == 1:
+        t = canonicalize_trucks(raw_text)
+    else:
+        kinds = {canonicalize_trucks(ln) for ln in (raw_text or "").splitlines()} - {""}
+        t = kinds.pop() if len(kinds) == 1 else ""
+    for pl in loads:
+        if t:
+            pl.truck_type = t
+
+
+# "Napitka 👇👇👇", "Chips ⬇️" — a short header line naming the goods of the list below it
+_CARGO_HEADER = re.compile(r"^[^\w\n]*([^\d\n:]{3,30}?)[\s:]*(?:👇|⬇️|⬇)+[\s👇⬇️]*$")
+
+
+_TIME_WORDS = re.compile(r"(?i)ertalab|kechqurun|tushdan|bugun|ertaga|утр|вечер|сегодня|завтра")
+
+
+def _cargo_headers(raw_text: str) -> list[str]:
+    """Header lines whose NEXT non-empty line is a route (a known place) — "Пишите 👇" (contact),
+    "Связь 👇" and lone arrows are not followed by a route, so they don't count."""
+    lines = [ln for ln in (raw_text or "").splitlines() if ln.strip()]
+    out = []
+    for i, ln in enumerate(lines[:-1]):
+        m = _CARGO_HEADER.match(ln.strip())
+        if not m:
+            continue
+        h = m.group(1).strip()
+        if (len(re.findall(r"[^\W\d_]", h)) >= 3 and not has_known_place(h) and not _TIME_WORDS.search(h)
+                and not canonicalize_trucks(h) and has_known_place(lines[i + 1])):
+            out.append(h)
+    return out
+
+
+def _fill_cargo_header(loads, raw_text: str) -> None:
+    """The model often ignores a list header as cargo. With exactly ONE such header in the post
+    and no cargo on any load, it is the cargo of all of them (two headers -> can't tell which
+    load is under which, so leave it)."""
+    if not loads or any((pl.cargo_type or "").strip() for pl in loads):
         return
-    t = canonicalize_trucks(raw_text)
-    if t:
-        pl.truck_type = t
+    heads = _cargo_headers(raw_text)
+    if len(heads) == 1:
+        for pl in loads:
+            pl.cargo_type = heads[0]
 
 
 async def run_pipeline() -> dict:
@@ -358,6 +396,7 @@ async def run_pipeline() -> dict:
             raw.processed = True
             _reattach_phones(loads, raw.text)     # real phone (masked before API) re-attached; never blank
             _fill_truck_from_text(loads, raw.text)   # recover 'isuzu kerak' etc. into truck_type
+            _fill_cargo_header(loads, raw.text)      # 'Napitka 👇' header -> cargo
             _check_dates(loads, raw.text)            # no invented 'ready'/'today'; add missed 'груз готов'
             _clean_comments(loads)                   # drop 'kelishiladi', 'WhatsApp' from comments
             meaningful = [pl for pl in loads if _is_meaningful(pl)]

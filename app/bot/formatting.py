@@ -98,6 +98,22 @@ def _post_link(l):
     return ""
 
 
+_USERNAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{3,31}")
+
+
+def _tg_contact(l) -> str:
+    """The poster's @username as a link — used ONLY when the load has no phone, so drivers can
+    still reach the poster. Skipped for bots (other apps' forwarders) and for the group itself
+    (anonymous admins post as the group — showing it would reveal the source)."""
+    u = (getattr(l, "poster_username", "") or "").strip().lstrip("@")
+    if not _USERNAME.fullmatch(u) or u.lower().endswith("bot"):
+        return ""
+    group = (l.source_group or "").rstrip("/").rsplit("/", 1)[-1].lstrip("@").lower()
+    if u.lower() == group:
+        return ""
+    return f'<a href="https://t.me/{u}">@{u}</a>'
+
+
 def has_original(l) -> bool:
     """Scraped loads keep the original post text; loads posted through the bot don't."""
     return (l.source_group or "") != "bot"
@@ -177,6 +193,8 @@ def format_load(l, lang=DEFAULT_LANG, num=None, link=False):
     lines.append(f"💰 {escape(price)}" + (f" · {escape(adv)}" if adv else ""))
     if l.contact_phone:
         lines.append(f"📞 {escape(l.contact_phone)}")
+    elif _tg_contact(l):
+        lines.append(f"✉️ {_tg_contact(l)}")
     return _common_tail(l, lines, lang, link)
 
 

@@ -197,16 +197,25 @@ def _fuzzy_truck(token: str):
     return best if score >= 0.82 else None
 
 
+# "fura"/"фура" alone means a tent semi-trailer; next to a type ("ref fura") it is just the trailer
+_GENERIC_TRUCK = {"fura", "фура", "фуру", "furaga", "фурага"}
+
+
 def canonicalize_trucks(raw) -> str:
     """Return ALL recognized truck/trailer types, comma-separated (e.g. 'tent, ref, paravoz').
     Tolerant of typos (isuzi->isuzu). Empty if none recognized (means 'any truck')."""
     if not raw:
         return ""
-    found = []
-    for token in re.split(r"[\s,.;/]+", str(raw).strip().lower()):
+    found, generic = [], False
+    for token in re.split(r"[\s,.;/()]+", str(raw).strip().lower()):
         if not token:
+            continue
+        if token in _GENERIC_TRUCK:          # "fura" = the trailer, not its type
+            generic = True
             continue
         t = TRUCK_ALIASES.get(token) or _fuzzy_truck(token)
         if t and t not in found:
             found.append(t)
+    if not found and generic:                # plain "fura kerak" -> usually a tent
+        found = ["tent"]
     return ", ".join(found)

@@ -156,8 +156,9 @@ Sarbon24_*.docx/pdf      research docs + Uzbek pitch deck (not code; filenames n
 8. **New truck type → update 5 places:** `normalize.TRUCK_ALIASES`, `prompt.SYSTEM_PROMPT`
    truck list, `bot/main.TRUCK_CODES`, `formatting._TRUCK_KEYS`, and `tk_<code>` in i18n for
    uz/kk/ru/en. Then add a test in `tests/test_trucks.py` / `run_tests.py`.
-9. **Don't show the poster's Telegram username on cards** (owner removed it on purpose;
-   the DB column `poster_username` stays). No "manba: @group" line. What bot cards show about
+9. **The poster's Telegram username appears ONLY on cards with no phone** (`formatting._tg_contact`,
+   owner's request 2026-10-16: "✉️ @user" link so drivers can still reach them). Never for
+   usernames ending in "bot" (other apps' forwarders) or equal to the source group (anonymous admins). No "manba: @group" line. What bot cards show about
    the source is the **owner's admin setting `card_source_mode`** (Settings → Bot cards):
    `original` (default — 📄 Asl matn button) | `link` (🔗 E'lon manbasi) | `both` | `none`.
    **Group posts never show either.** The **📄 Asl matn** button (`raw:<load_id>`) shows the original

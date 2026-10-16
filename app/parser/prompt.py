@@ -19,9 +19,12 @@ FIELDS:
   stays; don't shorten or convert to region), minus "(poytaxt)"/"(столица)". First place = origin.
 - truck_type: type(s) only from tent/ref/isotherm/flatbed/container/dump/isuzu/labo/paravoz.
   "тент/реф"->"tent, ref"; "isuzu kerak"->"isuzu"; "Labo"->"labo"; "paravoz/автопоезд" is a
-  road-train -> add it ("tent, paravoz"). "Сборка/сборный" is NOT a truck (-> comment). "тент/120":
+  road-train -> add it ("tent, paravoz"). "fura"/"фура" with no type ("fura kerak") -> "tent";
+  "ref fura" -> "ref". A truck line for the whole post ("🚛 Тент ёки Реф фура керак") goes on
+  EVERY load. "Сборка/сборный" is NOT a truck (-> comment). "тент/120":
   120 is volume -> volume_m3. "farqi yo'q"/none -> omit truck_type.
 - cargo_type: the goods (paxta, масло, полиэтилен, "bolgariskiy"=pepper). Never a truck word.
+  A header over a list ("Napitka 👇", "Chips 👇👇") is the cargo of every load under it.
 - truck_count: number of trucks ("4 авто", "20 mashina", "тент 13").
 - weight_tons: tons number; range "22-23т"->22; kg->tons ("200 кг"->0.2, "20000 кг"->20).
 - volume_m3: cubic meters ("96 m³", "96 куб", "120 kub", "тент 120"); range "96-105"->96.

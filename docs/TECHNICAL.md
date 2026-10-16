@@ -87,8 +87,10 @@ Constants: `DEDUP_WINDOW_HOURS=24`, `PARSE_CONCURRENCY=5`, `MAX_PARSE_PER_RUN=20
    - other error → `parse_attempts += 1`, give up after 3;
    - success → `_reattach_phones` (real phones from the ORIGINAL text, max 2, deduped by last
      9 digits; if regex finds none, the model's value is kept only if it has ≥7 digits — the
-     model writes words like "СРОЧНО" there), `_fill_truck_from_text` (single-load messages
-     only), `_check_dates` (drop a model 'ready'/'today'/'tomorrow' the post doesn't say; add
+     model writes words like "СРОЧНО" there), `_fill_truck_from_text` (single load: whole
+     text; several loads: only if none has a truck and all truck lines agree — one shared
+     "🚛 Тент ёки Реф фура керак" line; plain "fura" = tent, "ref fura" = ref),
+     `_fill_cargo_header` (one "Napitka 👇" header followed by a route line → cargo of all loads), `_check_dates` (drop a model 'ready'/'today'/'tomorrow' the post doesn't say; add
      'ready' for "груз готов"/"ortishga tayyor"), `_clean_comments` (drop "kelishiladi",
      WhatsApp/Telegram/IMO, and "Аванс…" when `advance` is set), keep only loads having BOTH
      origin and destination.

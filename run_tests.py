@@ -148,6 +148,28 @@ yday = SimpleNamespace(**{**vars(card), "loading_date": "tomorrow", "posted_at":
 check("yesterday's 'ertaga' shows as 'Bugun'", "📅 Sana: Bugun" in format_load(yday, "uz"), True)
 check("no advance -> plain 'kelishiladi'", "💰 kelishiladi\n" in format_load(card, "uz"), True)
 
+nophone = SimpleNamespace(**{**vars(card), "contact_phone": "", "poster_username": "@ali_logist"})
+check("no phone -> poster's @username link", '✉️ <a href="https://t.me/ali_logist">@ali_logist</a>' in format_load(nophone, "uz"), True)
+check("phone present -> no username", "ali_logist" in format_load(SimpleNamespace(**{**vars(nophone), "contact_phone": "+998901234567"}), "uz"), False)
+check("forwarding bots and the group itself are never shown",
+      ["✉️" in format_load(SimpleNamespace(**{**vars(nophone), "poster_username": u}), "uz")
+       for u in ("@diip_uz_bot", "@Yuk_markazi_yuk_yukla")], [False, False])
+check("plain 'fura' = tent; 'ref fura' = ref", [ct("fura kerak"), ct("ref fura"), ct("Тент ёке Реф фура керак")],
+      ["tent", "ref", "tent, ref"])
+from app.pipeline import _fill_truck_from_text
+shared = [ParsedLoad(origin_city="Ғазалкент", destination_city=d) for d in ("Қўқон", "Денау")]
+_fill_truck_from_text(shared, "Ғазалкент - Қўқон 3 та - 4 000 000 сум\nҒазалкент - Денау 1 та\n🚛 Тент ёке Реф фура керак")
+check("one shared truck line goes on every load", [x.truck_type for x in shared], ["tent, ref", "tent, ref"])
+mixed = [ParsedLoad(origin_city="A", destination_city=d) for d in ("B", "C")]
+_fill_truck_from_text(mixed, "A - B\nтент\n\nA - C\nреф")
+check("different truck lines per block are not guessed", [x.truck_type for x in mixed], ["", ""])
+from app.pipeline import _fill_cargo_header
+hdr = [ParsedLoad(origin_city="Ғазалкент", destination_city=d) for d in ("Қўқон", "Денау")]
+_fill_cargo_header(hdr, "Napitka 👇👇👇👇\n\nҒазалкент - Қўқон 3 та - 4 000 000 сум\nҒазалкент - Денау 1 та")
+check("'Napitka 👇' list header -> cargo of every load", [x.cargo_type for x in hdr], ["Napitka", "Napitka"])
+nohdr = [ParsedLoad(origin_city="A", destination_city="B")]
+_fill_cargo_header(nohdr, "Тошкент - Наманган тент\nПишите 👇\n+998901234567")
+check("'Пишите 👇' (contact) is not cargo", nohdr[0].cargo_type, "")
 from app.parser.prompt import batch_user_prompt
 check("batch prompt states the exact message count (stops the i=6..857 runaway loop)",
       "Return exactly 3 entries, i = 1 to 3" in batch_user_prompt(["a", "b", "c"]), True)
