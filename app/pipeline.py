@@ -289,6 +289,7 @@ async def run_pipeline() -> dict:
             s.add(RawMessage(
                 source_group=m["source_group"], source_msg_id=m["source_msg_id"],
                 sender=m["sender"], text=m["text"], posted_at=m["posted_at"],
+                text_hash=_dedup_key(m["text"]),
             ))
             new_raw += 1
 
@@ -324,12 +325,33 @@ async def run_pipeline() -> dict:
                 continue
             by_text.setdefault(_dedup_key(r.text), []).append(r)
 
+        # ...and across runs: dispatchers repost the SAME text again and again (63% of load posts
+        # on 2026-10-16 were exact reposts within 24h). Its loads already exist, so skip the API.
+        already_parsed = set()
+        if by_text:
+            since = datetime.now(timezone.utc) - timedelta(hours=DEDUP_WINDOW_HOURS)
+            already_parsed = set((await s.execute(
+                select(RawMessage.text_hash).where(
+                    RawMessage.text_hash.in_(list(by_text)),
+                    RawMessage.processed == True,  # noqa: E712
+                    RawMessage.posted_at >= since)
+            )).scalars())
+
         to_parse = []          # one representative per unique text
         duplicate_texts = 0
-        for grp in by_text.values():
+        reposts_skipped = 0
+        for key, grp in by_text.items():
+            if key in already_parsed:
+                for r in grp:
+                    r.processed = True
+                    r.text_hash = key
+                reposts_skipped += len(grp)
+                continue
+            grp[0].text_hash = key
             to_parse.append(grp[0])
             for dup in grp[1:]:  # identical repost — the representative yields the load
                 dup.processed = True
+                dup.text_hash = key
                 duplicate_texts += 1
 
         loop = asyncio.get_event_loop()
@@ -462,6 +484,7 @@ async def run_pipeline() -> dict:
         "api_calls": api_calls,                     # API REQUESTS made (batched)
         "prefiltered_junk": prefiltered_junk,       # skipped the model (noise)
         "duplicate_texts_skipped": duplicate_texts, # skipped the model (identical reposts)
+        "reposts_skipped": reposts_skipped,         # same text already parsed in the last 24h
         "rate_limited": rate_limited,
         "api_error": api_error[:300],
         "window": {"max_messages": global_max, "hours_back": global_hours},

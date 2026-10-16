@@ -63,7 +63,7 @@ async def init_db() -> None:
 # New columns we add over time — created on existing SQLite DBs so nothing is lost.
 _WANTED_COLUMNS = {
     "groups": {"max_messages": "INTEGER", "hours_back": "INTEGER", "last_msg_id": "INTEGER"},
-    "raw_messages": {"parse_attempts": "INTEGER DEFAULT 0"},
+    "raw_messages": {"parse_attempts": "INTEGER DEFAULT 0", "text_hash": "VARCHAR(32) DEFAULT ''"},
     "bot_users": {"lang": "VARCHAR(8) DEFAULT ''"},
     "loads": {"listing_type": "VARCHAR(16) DEFAULT 'load'", "posted_by_tg": "VARCHAR(64) DEFAULT ''", "truck_count": "INTEGER", "comment": "TEXT DEFAULT ''", "source_msg_id": "VARCHAR(64) DEFAULT ''", "notified": "BOOLEAN DEFAULT 0", "poster_username": "VARCHAR(64) DEFAULT ''", "advance": "VARCHAR(32) DEFAULT ''"},
 }
@@ -88,7 +88,8 @@ def _ensure_columns(sync_conn) -> None:
 
 
 # create_all only builds indexes for NEW tables — existing DBs get them here.
-_WANTED_INDEXES = {"ix_loads_posted_at": "loads (posted_at)"}
+_WANTED_INDEXES = {"ix_loads_posted_at": "loads (posted_at)",
+                   "ix_raw_messages_text_hash": "raw_messages (text_hash)"}
 
 
 def _ensure_indexes(sync_conn) -> None:

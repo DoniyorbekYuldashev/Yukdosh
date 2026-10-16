@@ -68,6 +68,9 @@ Constants: `DEDUP_WINDOW_HOURS=24`, `PARSE_CONCURRENCY=5`, `MAX_PARSE_PER_RUN=20
    - `_looks_like_load` — must contain a phone, a truck word, a tonnage (`20t`, `кг`, `куб`),
      or a known place. Otherwise marked processed and skipped.
    - Byte-identical reposts (same letters/digits) → parse only one representative.
+   - **Cross-run reposts:** `raw_messages.text_hash` (md5 of letters+digits) — if the same hash
+     was already processed in the last 24h, skip the API (its loads exist). Measured 2026-10-16:
+     63% of load posts are exact reposts within 24h. Logged as "N already parsed in 24h".
 7. **Mask phones** (`_mask_phones`): every digit run (never across a line break) that
    `_phone_at()` calls a phone is replaced by a space. A phone = 9–13 digits; `+…` always;
    NOT a phone when a currency follows on the same line ("3 900 000 сум", "4800$", "млн"), a price

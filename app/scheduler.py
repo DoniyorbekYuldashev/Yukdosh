@@ -54,7 +54,7 @@ async def main():
                 saved = st.get('prefiltered_junk', 0) + st.get('duplicate_texts_skipped', 0)
                 msg = (f"[scheduler] [{st.get('provider','?')}] +{st['loads_created']} loads, {st['new_raw_messages']} new msgs, "
                        f"{st['junk_skipped']} junk skipped, {st.get('api_calls', 0)} model calls "
-                       f"({saved} calls saved: noise+reposts)")
+                       f"({saved} calls saved: noise+reposts; {st.get('reposts_skipped', 0)} already parsed in 24h)")
                 if st.get("api_error"):
                     msg += f"\n           ⚠ API: {st['api_error']}"
                 if notif_bot:

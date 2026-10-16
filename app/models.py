@@ -47,6 +47,8 @@ class RawMessage(Base):
     posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     processed: Mapped[bool] = mapped_column(Boolean, default=False)
     parse_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    # md5 of the text's letters+digits: an exact repost of an already-parsed message is skipped
+    text_hash: Mapped[str] = mapped_column(String(32), default="", index=True)
 
     load: Mapped["Load"] = relationship(back_populates="raw_message", uselist=False)
 
