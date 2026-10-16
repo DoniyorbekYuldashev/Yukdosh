@@ -76,7 +76,9 @@ Constants: `DEDUP_WINDOW_HOURS=24`, `PARSE_CONCURRENCY=5`, `MAX_PARSE_PER_RUN=20
    Before 2026-10-16 any 7+ digit run was a "phone": prices, dates (`22 07 2026`) and volumes
    (`86-88-92-96`) were shown as phones and the real number was cut (only 2 kept).
 8. **Parse in batches:** up to 5 messages / 3,000 chars per call → `parser.parse_batch`
-   (temperature 0, max 6,000 output tokens; broken JSON → retry those messages one by one),
+   (temperature 0, max 6,000 output tokens; broken JSON → retry those messages one by one;
+   the batch prompt states the exact count — without it the model kept adding `{"i":N,"loads":[]}`
+   up to the token limit; a single message uses the plain `user_prompt` format),
    2 chunks per wave,
    run in a thread executor. **Circuit breaker:** if every item of a wave errors, stop the run
    (prints "API QUOTA EXHAUSTED" for quota errors).

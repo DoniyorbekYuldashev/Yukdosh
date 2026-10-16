@@ -148,6 +148,10 @@ yday = SimpleNamespace(**{**vars(card), "loading_date": "tomorrow", "posted_at":
 check("yesterday's 'ertaga' shows as 'Bugun'", "📅 Sana: Bugun" in format_load(yday, "uz"), True)
 check("no advance -> plain 'kelishiladi'", "💰 kelishiladi\n" in format_load(card, "uz"), True)
 
+from app.parser.prompt import batch_user_prompt
+check("batch prompt states the exact message count (stops the i=6..857 runaway loop)",
+      "Return exactly 3 entries, i = 1 to 3" in batch_user_prompt(["a", "b", "c"]), True)
+
 print("\n[Flags: country flag before each place on cards]")
 from app.parser.geo import flag_of
 check("Uzbek city, region and suffixed forms -> 🇺🇿",

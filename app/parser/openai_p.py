@@ -24,6 +24,7 @@ class OpenAIParser(LLMParser):
             model=self._model,
             response_format={"type": "json_object"},
             temperature=0,  # extraction, not creativity: same post -> same answer
+            max_tokens=6000,
             messages=[
                 {"role": "system", "content": self._system},
                 {"role": "user", "content": user_prompt(text)},
@@ -51,6 +52,8 @@ class OpenAIParser(LLMParser):
             return out
 
     def _parse_batch(self, texts: list[str]) -> list[list[ParsedLoad]]:
+        if len(texts) == 1:           # plain format: nothing to number, nothing to loop on
+            return [self.parse(texts[0])]
         resp = self._client.chat.completions.create(
             model=self._model,
             response_format={"type": "json_object"},

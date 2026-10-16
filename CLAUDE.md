@@ -142,7 +142,9 @@ Sarbon24_*.docx/pdf      research docs + Uzbek pitch deck (not code; filenames n
 3. **Deleting raw_messages:** always unlink first —
    `UPDATE loads SET raw_message_id=NULL` — then delete (Postgres enforces the FK).
 4. **`batch_user_prompt()` in prompt.py is imported by openai_p and gemini.** It was once
-   deleted by accident and silently broke OpenAI. Don't remove it.
+   deleted by accident and silently broke OpenAI. Don't remove it. It must state the exact
+   message count — without it the model looped (`{"i":857,"loads":[]}`…) to the token limit on
+   ~15% of calls. A 1-message call uses the plain `user_prompt()` instead.
 5. **Local parser does NOT batch** (batching made small models merge multi-load posts).
    Paid APIs DO batch (`BATCH_SIZE = 5` + `BATCH_CHARS` — 10 per call lost ~17% of loads). Keep the circuit breaker in `run_pipeline`
    (stops the run when a whole wave fails — prevents quota-draining retry storms).

@@ -107,11 +107,15 @@ def user_prompt(text: str) -> str:
 
 def batch_user_prompt(texts: list[str]) -> str:
     """Pack several messages into ONE request (used by paid APIs to cut request count)."""
-    parts = ["You are given SEVERAL separate Telegram messages, numbered below.",
+    n = len(texts)
+    # Say the count: without it the model kept adding {"i": 6..857, "loads": []} until the token
+    # limit (a repetition loop at temperature 0 -> broken JSON, every retry the same).
+    parts = [f"You are given exactly {n} separate Telegram messages, numbered 1 to {n} below.",
              "Extract loads from EACH message INDEPENDENTLY — never merge routes across messages.",
              "",
              'Return ONLY JSON: {"results": [{"i": <number>, "loads": [ {load}, ... ]}, ...]}',
-             "Include an entry for EVERY number; use an empty list when a message has no load.",
+             f"Return exactly {n} entries, i = 1 to {n} (empty list when a message has no load), "
+             "then close the JSON. Never add entries beyond " + str(n) + ".",
              ""]
     for idx, text in enumerate(texts, 1):
         parts.append(f"### MESSAGE {idx}")
