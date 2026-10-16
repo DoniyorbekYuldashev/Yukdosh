@@ -158,8 +158,8 @@ Sarbon24_*.docx/pdf      research docs + Uzbek pitch deck (not code; filenames n
    `original` (default — 📄 Asl matn button) | `link` (🔗 E'lon manbasi) | `both` | `none`.
    **Group posts never show either.** The **📄 Asl matn** button (`raw:<load_id>`) shows the original
    post text inside the bot, cleaned by `app/bot/clean.py`: links, @mentions, #hashtags and
-   whole ad lines (other bots/channels/groups, "Admin:", "kirish:", "orqali yuborildi"…) are
-   removed; card comments lose links/@mentions/#hashtags too. Calibrated on 5,675 real posts —
+   whole ad lines (other bots/channels/groups, freight apps like diip.uz/Yukon/Yukbozor, bare
+   domains, "Admin:", "kirish:", "orqali yuborildi"…) are removed, Telegram markdown is unwrapped; card comments lose links/@mentions/#hashtags too. Calibrated on 5,675 real posts —
    "bot" only as a separate word (places end in -obot: Qo'shrabot, Bekobot), never "Telegram"
    (contact lines), and **a line with a phone number is never dropped**. Tests guard all three.
 10. **No price → show "kelishiladi" / "келісіледі" / "договорная"** (key `price_none`).
@@ -195,7 +195,8 @@ paged results (5 per page, "Keyingi ➡️"). Region names match all their distr
 ("Qashqadaryo" finds Kitob, Qarshi…), country matches everything in it, RU/UZ spellings
 match (Бухара = Buxoro). Only loads newer than `load_active_hours` (default **12h** — owner raised it from 6h on
 2026-10-05 because quiet routes had too few loads) are shown, newest first.
-Card shows: route, trucks ×count, tons, cargo, price, phone, comment, time (Tashkent UTC+5,
+Card shows: route with a country flag before each place (🇺🇿 Toshkent → 🇷🇺 Moskva; `geo.flag_of`,
+no flag when unknown/ambiguous), trucks ×count, tons, cargo, price, phone, comment, time (Tashkent UTC+5,
 "Bugun 16:54"). Multi-card messages (search pages, "Yangi yuklar") number the cards and carry
 `📄 1 … 📄 N` buttons + a hint line; a single card (notifications) gets one `📄 Asl matn` button.
 Bot-posted loads have no button (no original post).

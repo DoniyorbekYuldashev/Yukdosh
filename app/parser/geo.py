@@ -64,18 +64,69 @@ _COUNTRY_FLAT = {
     "Kazakhstan": ["Almaty", "Astana", "Nur-Sultan", "Shymkent", "Karaganda", "Aktobe", "Taraz",
                    "Pavlodar", "Oskemen", "Ust-Kamenogorsk", "Kostanay", "Kyzylorda", "Atyrau",
                    "Aktau", "Semey", "Turkestan", "Petropavl", "Kokshetau", "Taldykorgan", "Oral",
-                   "Uralsk", "Ekibastuz", "Temirtau", "Zhezkazgan", "Balqash", "Saryagash", "Kentau"],
+                   "Uralsk", "Ekibastuz", "Temirtau", "Zhezkazgan", "Balqash", "Saryagash", "Kentau",
+                   "Атырау", "Atirau", "Кызылорда", "Арыс", "Сарыагаш", "Сарыагач", "Келес",
+                   "Актогай", "Бакты", "Джамбулская", "Жамбыл", "Тараз", "Актобе", "Костанай",
+                   "Усть-Каменогорск", "Семей", "Экибастуз", "Жезказган", "Туркестан", "Кентау",
+                   # look like Uzbek places to the fuzzy matcher (Shardara~Sirdaryo, Zharkent~Parkent)
+                   "Шардара", "Shardara", "Жаркент", "Zharkent", "Бахты", "Бахти", "Bakhty",
+                   "Сарань", "Saran"],
     "Russia": ["Moskva", "Sankt-Peterburg", "Novosibirsk", "Yekaterinburg", "Krasnodar", "Kazan",
                "Samara", "Rostov", "Chelyabinsk", "Ufa", "Volgograd", "Voronej", "Saratov",
                "Orenburg", "Nijniy Novgorod", "Perm", "Krasnoyarsk", "Omsk", "Tyumen", "Tula",
-               "Lipetsk", "Belgorod", "Astraxan", "Ekaterinburg"],
+               "Lipetsk", "Belgorod", "Astraxan", "Ekaterinburg",
+               # seen in real posts (most frequent first)
+               "Kirov", "Yegoryevsk", "Егорьевск", "Tobolsk", "Barnaul", "Kaluga", "Sharya", "Vologda",
+               "Cherepovets", "Shatura", "Tambov", "Severouralsk", "Smolensk", "Syktyvkar", "Izhevsk",
+               "Tomsk", "Asino", "Ivanovo", "Volchansk", "Makhachkala", "Махачкала", "Sergiev Posad",
+               "Klin", "Kurganinsk", "Yaroslavl", "Kostroma", "Irkutsk", "Taganrog", "Verkhnyaya Tura",
+               "Верхняя Тура", "Verxnotura", "Novorossiysk", "Yelabuga", "Елабуга", "Ilsky",
+               "Elektrogorsk", "Rubtsovsk", "Lobnya", "Alapaevsk", "Nizhnekamsk", "Krymsk", "Grozny",
+               "Veliky Novgorod", "Stavropol", "Krasnouralsk", "Lyudinovo", "Людиново", "Bryansk",
+               "Pyatigorsk", "Vladimir", "Balabanovo", "Ryazan", "Murom", "Kemerovo",
+               "Khanty-Mansiysk", "Tver", "Boguchany", "Karpinsk", "Peresvet", "Sayanogorsk",
+               "Sterlitamak", "Vokhtoga", "Вохтога", "Kursk", "Oryol", "Penza", "Ulyanovsk",
+               "Kaliningrad", "Murmansk", "Arkhangelsk", "Petrozavodsk", "Novokuznetsk", "Surgut",
+               "Nizhnevartovsk", "Tolyatti", "Naberezhnye Chelny", "Cheboksary", "Saransk", "Kurgan",
+               "Magnitogorsk", "Vladivostok", "Khabarovsk", "Chita", "Ulan-Ude", "Abakan", "Sochi",
+               "Vladikavkaz", "Nalchik", "Derbent", "Khasavyurt", "Yakutsk", "Norilsk", "Novy Urengoy",
+               "Noyabrsk", "Orsk", "Engels", "Kamyshin", "Volzhsky", "Dzerzhinsk", "Kolomna",
+               "Serpukhov", "Obninsk", "Kovrov", "Rybinsk", "Velikiye Luki", "Pskov", "Ukhta",
+               "Vorkuta", "Kotlas", "Miass", "Zlatoust", "Nefteyugansk",
+               # Cyrillic forms where the Latin spelling normalizes differently (ы, ж, ё)
+               "Сыктывкар", "Ижевск", "Крымск", "Набережные Челны", "Ростов-на-Дону", "Дзержинск",
+               "Орел", "Орёл", "Воронеж", "Voronezh", "Нижнекамский", "Томский", "Иркутский",
+               "Электрогорский", "Электрагорский", "Шуя", "Волоколамск", "Белорецк", "Ейск",
+               "Галич", "Лесосибирск", "Lesosibirsk", "Свердловская", "Sverdlovsk", "Коми",
+               "Дагестан", "Карелия", "Татарстан", "Башкортостан", "Чечня", "Якутия", "Пермь",
+               "Сургут", "Нижневартовск", "Тольятти", "Чебоксары", "Ульяновск", "Ярославль",
+               "Новый Уренгой", "Ноябрьск", "Ханты-Мансийск", "Кызыл", "Ува", "Uva"],
+    "Belarus": ["Minsk", "Brest", "Borisov", "Gomel", "Grodno", "Vitebsk", "Mogilev", "Bobruisk",
+                "Baranovichi", "Molodechno", "Svisloch", "Свислочь", "Orsha", "Pinsk", "Lida",
+                "Речица", "Ивацевичи", "Солигорск", "Жодино"],
+    "Azerbaijan": ["Baku", "Boku", "Ganja", "Sumgait", "Mingachevir"],
+    "Georgia": ["Tbilisi", "Poti", "Batumi", "Kutaisi", "Rustavi"],
+    "Armenia": ["Yerevan", "Gyumri"],
+    "Lithuania": ["Vilnius", "Kaunas", "Klaipeda"],
+    "Latvia": ["Riga", "Daugavpils"],
+    "Estonia": ["Tallinn"],
+    "Poland": ["Warsaw", "Varshava", "Lodz", "Poznan", "Wroclaw", "Krakow", "Malaszewicze"],
+    "Germany": ["Berlin", "Hamburg", "Munich", "Frankfurt", "Duisburg", "Bremen"],
+    "China": ["Urumqi", "Urumchi", "Урумчи", "Alashankou", "Алашанькоу", "Kashgar", "Кашгар",
+              "Yiwu", "Guangzhou", "Beijing", "Shanghai", "Xian"],
+    "Afghanistan": ["Kabul", "Mazar-i-Sharif", "Мазари-Шариф", "Mazari Sharif", "Hairatan",
+                    "Хайратон", "Herat", "Kandahar", "Kunduz"],
+    "Iran": ["Tehran", "Bandar Abbas", "Mashhad", "Tabriz"],
     "Kyrgyzstan": ["Bishkek", "Osh", "Jalal-Abad", "Karakol", "Talas", "Naryn", "Batken", "Tokmok",
                    "Kara-Balta", "Kant", "Uzgen", "Kara-Suu"],
     "Tajikistan": ["Dushanbe", "Khujand", "Xujand", "Bokhtar", "Kurgan-Tyube", "Kulob", "Istaravshan",
                    "Panjakent", "Isfara", "Konibodom", "Tursunzoda", "Vahdat", "Hisor"],
-    "Uzbekistan": [],  # covered by the region layer above
-    "Turkmenistan": ["Ashgabat", "Turkmenabat", "Dashoguz", "Mary", "Balkanabat", "Turkmenbashi"],
-    "Turkey": ["Istanbul", "Ankara", "Izmir", "Bursa", "Mersin", "Gaziantep"],
+    "Uzbekistan": ["Vodiy", "Водий", "Наваи", "Ахангаран", "Akchalak", "Акчалак", "Qoraqalpoq",
+                   "Nazarbek", "Назарбек", "Keles"],  # cities are in the region layer; "Vodiy" = Fergana valley
+    "Turkmenistan": ["Ashgabat", "Ашхабад", "Turkmenabat", "Dashoguz", "Mary", "Balkanabat",
+                     "Turkmenbashi", "Sarakhs", "Сарахс", "Саракс", "Farap", "Фарап"],
+    "Turkey": ["Istanbul", "Stambul", "Стамбул", "Ankara", "Izmir", "Bursa", "Mersin", "Gaziantep",
+               "Gebze", "Гебзе", "Tuzla", "Тузла", "Kocaeli", "Konya", "Kayseri", "Antalya"],
 }
 
 # which country each region belongs to
@@ -93,6 +144,47 @@ _COUNTRY_ALIASES = {
     "Tajikistan": ["tajikistan", "tojikiston", "таджикистан", "тоҷикистон", "tj"],
     "Turkmenistan": ["turkmenistan", "turkманистан", "туркменистан", "tm"],
     "Turkey": ["turkey", "turkiya", "турция", "туркия"],
+    "Belarus": ["belarus", "belarus'", "беларусь", "белоруссия", "беларуссия", "belorussiya", "belarusiya",
+                "белорус", "belarusiya", "rb"],
+    "Azerbaijan": ["azerbaijan", "ozarbayjon", "азербайджан", "озарбайжон"],
+    "Georgia": ["georgia", "gruziya", "грузия", "gurjiston"],
+    "Armenia": ["armenia", "armaniston", "армения", "armeniya"],
+    "Lithuania": ["lithuania", "litva", "литва"],
+    "Latvia": ["latvia", "latviya", "латвия"],
+    "Estonia": ["estonia", "estoniya", "эстония"],
+    "Poland": ["poland", "polsha", "польша"],
+    "Germany": ["germany", "germaniya", "германия"],
+    "China": ["china", "xitoy", "китай", "хитой"],
+    "Afghanistan": ["afghanistan", "afgoniston", "афганистан", "афгонистон"],
+    "Iran": ["iran", "eron", "иран", "эрон"],
+    "Ukraine": ["ukraine", "ukraina", "украина"],
+    "Moldova": ["moldova", "молдова", "молдавия"],
+    "Austria": ["austria", "avstriya", "австрия"],
+    "Italy": ["italy", "italiya", "италия"],
+    "Romania": ["romania", "ruminiya", "румыния"],
+    "United Kingdom": ["uk", "england", "angliya", "великобритания", "англия", "buyuk britaniya"],
+    "Czechia": ["czechia", "chexiya", "чехия"],
+    "Hungary": ["hungary", "vengriya", "венгрия"],
+    "Bulgaria": ["bulgaria", "bolgariya", "болгария"],
+    "Netherlands": ["netherlands", "niderlandiya", "голландия", "нидерланды", "gollandiya"],
+    "France": ["france", "fransiya", "франция"],
+    "Spain": ["spain", "ispaniya", "испания"],
+    "Mongolia": ["mongolia", "mongoliya", "монголия"],
+    "Pakistan": ["pakistan", "pokiston", "пакистан"],
+    "India": ["india", "hindiston", "индия"],
+    "UAE": ["uae", "oae", "оаэ", "dubai", "dubay", "дубай"],
+}
+
+# Shown before each place on cards. Unknown country -> no flag (better than a wrong one).
+FLAGS = {
+    "Uzbekistan": "🇺🇿", "Kazakhstan": "🇰🇿", "Russia": "🇷🇺", "Kyrgyzstan": "🇰🇬",
+    "Tajikistan": "🇹🇯", "Turkmenistan": "🇹🇲", "Turkey": "🇹🇷", "Belarus": "🇧🇾",
+    "Azerbaijan": "🇦🇿", "Georgia": "🇬🇪", "Armenia": "🇦🇲", "Lithuania": "🇱🇹",
+    "Latvia": "🇱🇻", "Estonia": "🇪🇪", "Poland": "🇵🇱", "Germany": "🇩🇪", "China": "🇨🇳",
+    "Afghanistan": "🇦🇫", "Iran": "🇮🇷", "Ukraine": "🇺🇦", "Moldova": "🇲🇩", "Austria": "🇦🇹",
+    "Italy": "🇮🇹", "Romania": "🇷🇴", "United Kingdom": "🇬🇧", "Czechia": "🇨🇿", "Hungary": "🇭🇺",
+    "Bulgaria": "🇧🇬", "Netherlands": "🇳🇱", "France": "🇫🇷", "Spain": "🇪🇸", "Mongolia": "🇲🇳",
+    "Pakistan": "🇵🇰", "India": "🇮🇳", "UAE": "🇦🇪",
 }
 
 # region name spellings (Cyrillic / common variants); norm_city handles most, these are safety
@@ -149,10 +241,10 @@ for _k, _country in _COUNTRY_KEYS.items():
 # otherwise Russian-written loads become invisible to Uzbek searches (and vice versa).
 _CITY_ALT = {
     "Toshkent": ["Tashkent"], "Chirchiq": ["Chirchik"], "Olmaliq": ["Almalyk"],
-    "Bekobod": ["Bekabad"], "Angren": [], "Yangiyol": ["Yangiyul"],
+    "Bekobod": ["Bekabad"], "Angren": [], "Chinoz": ["Chinaz"], "Yangiyol": ["Yangiyul"],
     "Buxoro": ["Bukhara", "Buxara"], "Kogon": ["Kagan"], "Gijduvon": ["Gizhduvan"],
     "Navoiy": ["Navoi"], "Zarafshon": ["Zarafshan"], "Uchquduq": ["Uchkuduk"],
-    "Fargona": ["Fergana", "Ferghana"], "Qoqon": ["Kokand", "Kokan"],
+    "Fargona": ["Fergana", "Ferghana"], "Qoqon": ["Kokand", "Kokan", "Kukon", "Kokon"],
     "Margilon": ["Margilan"], "Quvasoy": ["Kuvasay"], "Rishton": ["Rishtan"],
     "Andijon": ["Andijan"], "Asaka": [], "Xonobod": ["Khanabad"], "Qorasuv": ["Karasu"],
     "Namangan": [], "Chust": [], "Uchqorgon": ["Uchkurgan"], "Kosonsoy": ["Kasansay"],
@@ -161,13 +253,13 @@ _CITY_ALT = {
     "Guzor": ["Guzar"], "Koson": ["Kasan"], "Muborak": ["Mubarek"],
     "Termiz": ["Termez"], "Denov": ["Denau"], "Sherobod": ["Sherabad"],
     "Shorchi": ["Shurchi"], "Boysun": ["Baysun"],
-    "Jizzax": ["Dzhizak", "Djizak", "Jizzakh"], "Gagarin": [], "Zomin": ["Zaamin"],
+    "Jizzax": ["Dzhizak", "Djizak", "Jizzakh", "Djizzak", "Жиззак"], "Gagarin": [], "Zomin": ["Zaamin"],
     "Guliston": ["Gulistan"], "Yangiyer": [], "Sirdaryo": ["Syrdarya", "Sirdarya"],
     "Urganch": ["Urgench"], "Xiva": ["Khiva"], "Hazorasp": ["Khazarasp"],
     "Gurlan": ["Gurlen"], "Pitnak": [],
     "Nukus": [], "Xojayli": ["Khodjeyli"], "Chimboy": ["Chimbay"],
     "Beruniy": ["Beruni"], "Turtkol": ["Turtkul"], "Qongirot": ["Kungrad"],
-    "Moskva": ["Moscow"], "Sankt-Peterburg": ["Saint-Petersburg", "Spb"],
+    "Moskva": ["Moscow", "Maskva", "Масква"], "Sankt-Peterburg": ["Saint-Petersburg", "Spb", "Piter"],
     "Almaty": ["Alma-Ata"], "Shymkent": ["Chimkent"], "Astana": ["Nur-Sultan"],
     "Bishkek": ["Bishkek"], "Dushanbe": ["Dushanbe"],
 }
@@ -198,6 +290,45 @@ for _reg, _alts in _REGION_ALT.items():
     if _reg in _ALL_REGIONS:
         for _a in _alts:
             _REGION_KEYS[norm_city(_a)] = _reg
+
+# every region spelling ("Хорезм", "Сурхандарья") also tells the country
+for _k, _reg in _REGION_KEYS.items():
+    _CITY2COUNTRY.setdefault(_k, _REGION_COUNTRY.get(_reg))
+
+# "Xorazm viloyati", "Toshkent shahri", "Ташкентская обл." -> drop the admin word
+_ADMIN_WORD = re.compile(r"(?i)^(?:viloyat\w*|vil|respublika\w*|tuman\w*|shahr\w*|обл\w*|край|"
+                         r"республика|район|р-н|г|город|poytaxt)$")
+# Uzbek case endings in places the parser copied as written: Toshkentdan, Qarshiga
+_UZ_SUFFIX = re.compile(r"(?i)(?:gacha|dan|ga|da|ni|ning|гача|дан|га|да|ни|нинг)$")
+
+
+def _exact(k: str):
+    if k and (k in _CITY2COUNTRY or k in _CITY2REGION or k in _REGION_KEYS):
+        return (_CITY2REGION.get(k) or _REGION_KEYS.get(k), _CITY2COUNTRY.get(k))
+    return None
+
+
+@lru_cache(maxsize=8192)
+def _resolve_place(place: str):
+    """(region, country) for a place as written. Tries the whole name, then without admin
+    words, then word by word ("Киров Мураши", "Toshkentdan"), then a fuzzy match for typos."""
+    pn = norm_city(place)
+    hit = _exact(pn)
+    if hit:
+        return hit
+    words = [w for w in re.findall(r"[\w'’ʻ‘`-]+", place or "") if not _ADMIN_WORD.match(w)]
+    hit = _exact(norm_city(" ".join(words)))
+    if hit:
+        return hit
+    for w in words:
+        k = norm_city(w)
+        if len(k) < 4:                       # short words ("Pop", "Osh") only as a whole name
+            continue
+        stem = norm_city(_UZ_SUFFIX.sub("", w))
+        hit = _exact(k) or (len(stem) >= 4 and _exact(stem))
+        if hit:
+            return hit
+    return _resolve(pn)
 
 
 def classify_query(query: str):
@@ -230,11 +361,16 @@ def _resolve(pn: str):
 
 
 def region_of(place: str):
-    return _resolve(norm_city(place))[0]
+    return _resolve_place(place or "")[0]
 
 
 def country_of(place: str):
-    return _resolve(norm_city(place))[1]
+    return _resolve_place(place or "")[1]
+
+
+def flag_of(place: str) -> str:
+    """'🇺🇿' for Toshkent / Farg'ona, '🇷🇺' for Moskva; '' when the country is unknown."""
+    return FLAGS.get(country_of(place), "")
 
 
 def location_match(load_place: str, query: str) -> bool:

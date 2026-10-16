@@ -244,7 +244,14 @@ post, empty truck, ad/junk. Keep the set small; replace weak examples instead of
 - `classify_query(q)` → country | region | city | any.
 - `location_match(load_place, query)`: country → same country; region → load's region equals
   it (so "Qashqadaryo" finds Kitob, Qarshi); city → same canonical alias, else fuzzy.
-- `_resolve` is `lru_cache`d with a fuzzy fallback (≥0.85) for typos.
+- `_resolve_place(place)` (`lru_cache`d) → (region, country): whole name → without admin words
+  (viloyati, область, shahri…) → word by word, also minus Uzbek case endings ("Киров Мураши",
+  "Toshkentdan"; words < 4 letters only as a whole name) → fuzzy fallback (≥0.85) for typos.
+  The fuzzy step can mislead (Чиназ≈China, Шардара≈Sirdaryo) — fix such cases by adding the
+  exact spelling to `_COUNTRY_FLAT` / `_CITY_ALT`. `region_of` / `country_of` use it.
+- `flag_of(place)` → `FLAGS[country_of(place)]` or "" — cards show the flag before each place
+  (2026-10-16). 93% of 39,914 place mentions get a flag; ambiguous places get none on purpose
+  (Хоргос — town on both the KZ and China side; Crimea).
 - `has_known_place(text)` — used by the pipeline prefilter.
 
 **`parser/dedup.py`** — `dedup_hash = sha(norm(origin)|norm(destination)|phones)` where
@@ -281,7 +288,7 @@ row 3 `🆕 Yangi yuklar` | `ℹ️ Yordam`.
 
 **Card** (`formatting.format_load`):
 ```
-<b>1.</b> 📦 <b>Toshkent → Moskva</b>   ("1." only in multi-card messages)
+<b>1.</b> 📦 <b>🇺🇿 Toshkent → 🇷🇺 Moskva</b>   ("1." only in multi-card messages; flag only when known)
 🚚 Tent, Refrijerator ×2 · ⚖️ 20 t
 📦 paxta
 💰 45,000,000 so'm        (no price → "kelishiladi")
@@ -293,12 +300,16 @@ Empty-truck cards use 🚛; goods listings have their own layout (`format_goods`
 fields are HTML-escaped. **No source link** (removed 2026-10-16): `formatting.original_kb()`
 adds `📄 1…N` buttons (or one `📄 Asl matn` for a single card) with `callback_data="raw:<id>"`;
 `cb_original` → `queries.original_text(id)` reads `raw_text` by primary key, cleans it with
-`clean.clean_original` (drops ad/promo lines — other bots, channels, groups, "Admin:",
-"kirish:", "orqali yuborildi" — then strips links, @mentions, #hashtags), caps at 3,800 chars
+`clean.clean_original` (unwraps Telegram markdown `[text](url)`, `**`, `__`; drops ad/promo lines —
+other bots, channels, groups, freight apps (diip.uz, Yukon, Yukbozor, "ilovasi orqali…",
+Play Market), bare domains, "Admin:", "kirish:", "orqali yuborildi" — then strips links,
+domains, @mentions, #hashtags; `wa.me/+7…` keeps the number), caps at 3,800 chars
 and sends it; a load already deleted by retention → "not found" alert. "Keyingi" keeps the
 previous page's 📄 buttons. Rules were calibrated on 5,675 real posts (13 ad lines removed,
-0 phones, 0 place names lost): "bot" only as a standalone word (-obot place names), no
-"Telegram" rule (contact lines), and lines containing a 9+ digit phone are never dropped.
+0 phones, 0 place names lost) and re-checked on 8,756 posts for the app rules (1,104 more ad
+lines, 0 phones lost): "bot" only as a standalone word (-obot place names), "ilova" only at a
+word start (surnames Isroilova, Komilova), no "Telegram" rule (contact lines), and lines
+containing a 9+ digit phone are never dropped.
 
 ---
 

@@ -92,11 +92,32 @@ check("contact line mentioning Telegram keeps its phone",
       clean_original("Tel +998910577979 (WhatsApp, Telegram, Imo)"), "Tel +998910577979 (WhatsApp, Telegram, Imo)")
 check("'Kanalizatsionnye truby' (sewer pipes) is cargo, not a channel",
       clean_original("Груз: Канализационные трубы"), "Груз: Канализационные трубы")
+diip = ("[**diip.uz**](https://diip.uz/applink)**; da yangi yuk!**\n**🇺🇿Toshkent → 🇦🇿Boku**\n"
+        "Нуриддин Гайратов : +998880800706\n"
+        "Bu yuk [diip.uz](https://diip.uz/applink); ilovasi orqali bepul va avtomatik tarqatilmoqda.")
+check("freight-app ads (diip.uz) and markdown removed",
+      clean_original(diip), "🇺🇿Toshkent → 🇦🇿Boku\nНуриддин Гайратов : +998880800706")
+check("'-ilova' surnames are not app ads",
+      clean_original("Dilnoza Isroilova, tent kerak"), "Dilnoza Isroilova, tent kerak")
+check("wa.me link keeps its phone number",
+      clean_original("Телефон: [Wa.me/+79646254848](http://Wa.me/+79646254848)"), "Телефон: +79646254848")
+check("e-mail is not a domain ad", clean_original("Pochta: info@yuk.uz"), "Pochta: info@yuk.uz")
 noted = SimpleNamespace(**{**vars(card), "comment": "Оплата нагляд, @kanal"})
 check("card comment loses @mentions", "@kanal" in format_load(noted, "uz"), False)
 text, used = build_post([card] * 3, "uz", "@yukdoshbot")
 check("digest holds all loads that fit", len(used), 3)
 check("digest ends with bot pointer", text.rstrip().endswith("@yukdoshbot"), True)
+
+print("\n[Flags: country flag before each place on cards]")
+from app.parser.geo import flag_of
+check("Uzbek city, region and suffixed forms -> 🇺🇿",
+      [flag_of(p) for p in ("Toshkent", "Farg'ona", "Xorazm Viloyati", "Toshkentdan", "Хоразим")], ["🇺🇿"] * 5)
+check("Moskva / Москва / 'Киров Мураши' -> 🇷🇺",
+      [flag_of(p) for p in ("Moskva", "Москва", "Киров Мураши")], ["🇷🇺"] * 3)
+check("fuzzy traps: Chinoz is not China, Ува not Quva, Shardara not Sirdaryo",
+      [flag_of(p) for p in ("Чиназ", "Ува", "Шардара", "Жаркент")], ["🇺🇿", "🇷🇺", "🇰🇿", "🇰🇿"])
+check("ambiguous / unknown places get no flag", [flag_of(p) for p in ("Хоргос", "Симферополь", "Xyzabc")], ["", "", ""])
+check("card route line carries flags", "🇺🇿 Toshkent → 🇹🇲 Сарахс" in format_load(card, "uz"), True)
 
 print("\n[Languages: every language has every text]")
 from app.bot.i18n import TEXTS, LANG_NAMES, variants

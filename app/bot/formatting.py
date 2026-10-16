@@ -4,6 +4,7 @@ from html import escape
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from ..parser.geo import flag_of
 from .clean import strip_source
 from .i18n import t, DEFAULT_LANG
 
@@ -45,6 +46,13 @@ def _truck_label(code, lang):
     code = (code or "").strip()
     key = _TRUCK_KEYS.get(code)
     return t(lang, key) if key else code
+
+
+def _place(name):
+    """'🇺🇿 Toshkent' — the country flag in front of a place we can place; just the name otherwise."""
+    name = name or "?"
+    flag = "" if any("🇦" <= ch <= "🇿" for ch in name) else flag_of(name)
+    return f"{flag} {escape(name)}" if flag else escape(name)
 
 
 def _num(num):
@@ -107,7 +115,7 @@ def format_load(l, lang=DEFAULT_LANG, num=None, link=False):
     if getattr(l, "listing_type", "load") == "goods":
         return format_goods(l, lang, num, link)
     head = "📦" if l.is_load else "🚛"
-    lines = [f"{_num(num)}{head} <b>{escape(l.origin_city or '?')} → {escape(l.destination_city or '?')}</b>"]
+    lines = [f"{_num(num)}{head} <b>{_place(l.origin_city)} → {_place(l.destination_city)}</b>"]
 
     row = []
     if l.truck_type:
